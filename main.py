@@ -308,6 +308,12 @@ class QQAdminPlugin(Star):
         "设置/查看未命中进群关键词多少次后拉黑（0表示不限制，无参数表示查看）"
         await self.join.handle_join_max_time(event, time)
 
+    @filter.command("进群白名单")
+    @perm_required(PermLevel.ADMIN, perm_key="join")
+    async def handle_allow_ids(self, event: AiocqhttpMessageEvent):
+        "进群白名单 +QQ -QQ, 带+-则增删, 不带则覆写"
+        await self.join.handle_allow_ids(event)
+
     @filter.command("进群黑名单")
     @perm_required(PermLevel.ADMIN, perm_key="join")
     async def handle_reject_ids(self, event: AiocqhttpMessageEvent):

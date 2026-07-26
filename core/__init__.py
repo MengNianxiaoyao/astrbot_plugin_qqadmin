@@ -1,4 +1,4 @@
-from .banpro_handel import BanproHandle
+from .banpro_handle import BanproHandle
 from .curfew_handle import CurfewHandle
 from .file_handle import FileHandle
 from .join_handle import JoinHandle

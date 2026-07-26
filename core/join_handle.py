@@ -103,22 +103,22 @@ class JoinHandle:
             time = await self.db.get(gid, "join_max_time")
             await event.send(event.plain_result(f"本群进群可尝试次数：{time} 次"))
 
-    async def handle_block_ids(self, event: AiocqhttpMessageEvent):
+    async def _handle_id_list(self, event: AiocqhttpMessageEvent, field: str, label: str):
         gid = event.get_group_id()
         raw = event.message_str.partition(" ")[2]
 
         if not raw:
-            ids = await self.db.get(gid, "block_ids", [])
-            await event.send(event.plain_result(f"本群进群黑名单：{ids}"))
+            ids = await self.db.get(gid, field, [])
+            await event.send(event.plain_result(f"本群进群{label}：{ids}"))
             return
 
         if all(tok.isdigit() for tok in raw.split()):
             new_ids = raw.split()
-            await self.db.set(gid, "block_ids", new_ids)
-            await event.send(event.plain_result(f"黑名单已覆写为：{' '.join(new_ids)}"))
+            await self.db.set(gid, field, new_ids)
+            await event.send(event.plain_result(f"{label}已覆写为：{' '.join(new_ids)}"))
             return
 
-        curr = set(await self.db.get(gid, "block_ids", []))
+        curr = set(await self.db.get(gid, field, []))
         added, removed = [], []
         for tok in raw.split():
             if tok.startswith("+") and tok[1:].isdigit():
@@ -132,9 +132,9 @@ class JoinHandle:
                     curr.discard(uid)
                     removed.append(uid)
 
-        await self.db.set(gid, "block_ids", list(curr))
+        await self.db.set(gid, field, list(curr))
 
-        reply = ["本群进群黑名单"]
+        reply = [f"本群进群{label}"]
         if added:
             reply.append(f"新增：{'、'.join(added)}")
         if removed:
@@ -142,6 +142,12 @@ class JoinHandle:
         if not added and not removed:
             reply.append("无变动")
         await event.send(event.plain_result("\n".join(reply)))
+
+    async def handle_allow_ids(self, event: AiocqhttpMessageEvent):
+        await self._handle_id_list(event, "allow_ids", "白名单")
+
+    async def handle_block_ids(self, event: AiocqhttpMessageEvent):
+        await self._handle_id_list(event, "block_ids", "黑名单")
 
     async def handle_join_ban(self, event: AiocqhttpMessageEvent, time: int | None):
         gid = event.get_group_id()
@@ -195,6 +201,11 @@ class JoinHandle:
         user_level: int | None = None,
     ) -> tuple[bool | None, str]:
         """判断是否让该用户入群，返回原因"""
+        # 0.白名单用户直接通过
+        allow_ids = await self.db.get(gid, "allow_ids", [])
+        if uid in allow_ids:
+            return True, "白名单用户"
+
         # 1.黑名单用户
         block_ids = await self.db.get(gid, "block_ids", [])
         if uid in block_ids:
@@ -230,7 +241,7 @@ class JoinHandle:
         if max_fail > 0:
             key = f"{gid}_{uid}"
             self._fail[key] = self._fail.get(key, 0) + 1
-            if self._fail[key] >= max_fail:
+            if self._fail[key] > max_fail:
                 await self.db.add(gid, "block_ids", uid)
                 return False, f"进群尝试次数已达上限({max_fail}次)，已拉黑"
 
@@ -317,12 +328,21 @@ class JoinHandle:
             and raw.get("notice_type") == "group_decrease"
             and raw.get("sub_type") == "leave"
         ):
-            if await self.db.get(gid, "leave_notify", False):
+            should_block = await self.db.get(gid, "leave_block", False)
+            should_notify = await self.db.get(gid, "leave_notify", False)
+            if should_block:
+                allow_ids = await self.db.get(gid, "allow_ids", [])
+                if uid not in allow_ids:
+                    await self.db.add(gid, "block_ids", uid)
+                    did_block = True
+                else:
+                    did_block = False
+            else:
+                did_block = False
+            if should_notify:
                 nickname = await get_nickname(event, uid)
                 msg = f"{nickname}({uid}) 主动退群了"
-                # 退群拉黑
-                if await self.db.get(gid, "leave_block", False):
-                    await self.db.add(gid, "block_ids", uid)
+                if did_block:
                     msg += "，已拉黑"
                 await event.send(event.plain_result(msg))
 

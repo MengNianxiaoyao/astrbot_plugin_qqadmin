@@ -63,6 +63,12 @@
         "type": "bool",
         "default": false
       },
+      "allow_ids": {
+        "description": "进群白名单",
+        "hint": "用户加入群聊时，若用户QQ在白名单中，则自动通过。白名单用户退群时也不会被自动拉黑",
+        "type": "list",
+        "default": []
+      },
       "block_ids": {
         "description": "进群黑名单",
         "hint": "用户加入群聊时，若用户QQ在黑名单中，则自动拒绝",

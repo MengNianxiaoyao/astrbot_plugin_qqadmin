@@ -24,6 +24,7 @@ class QQAdminDB:
         "join_reject_words": "进群黑词",
         "join_no_match_reject": "未中白词拒绝",
         "reject_word_block": "命中黑词拉黑",
+        "allow_ids": "进群白名单",
         "block_ids": "进群黑名单",
         "join_welcome": "进群欢迎词",
         "join_ban_time": "进群禁言时长",
