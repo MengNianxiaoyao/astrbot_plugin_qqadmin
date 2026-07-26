@@ -168,8 +168,15 @@ def perm_required(
             if event.platform_meta.name != "aiocqhttp":
                 return
 
-            # 仅限群聊
+            # 私聊处理（仅 bot 管理员能收到通知，直接放行）
             if event.is_private_chat():
+                if inspect.isasyncgenfunction(func):
+                    async for item in func(plugin_instance, event, *args, **kwargs):
+                        yield item
+                else:
+                    await cast(
+                        Awaitable[Any], func(plugin_instance, event, *args, **kwargs)
+                    )
                 return
 
             # 权限管理未初始化
