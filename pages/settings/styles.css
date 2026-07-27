@@ -895,7 +895,7 @@ img {
   gap: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  max-height: 360px;
+  max-height: 270px;
   overflow-y: auto;
 }
 
