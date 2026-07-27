@@ -211,7 +211,10 @@ class JoinHandle:
         if uid in block_ids:
             return False, "黑名单用户"
 
-        # 2.QQ等级过低
+        # 2.QQ等级过低或隐藏
+        if user_level is None:
+            return None, "QQ等级可能被隐藏，人工审核"
+
         min_level = await self.db.get(gid, "join_min_level")
         if min_level > 0 and user_level is not None and user_level < min_level:
             return False, f"QQ等级过低({user_level}<{min_level})"
@@ -304,13 +307,11 @@ class JoinHandle:
                     logger.warning(f"set_group_add_request failed: {e}")
                     return
             else:
-                approve_msg = ""
+                approve_msg = reason
 
             # 生成并发送通知
-            tip = "批准/驳回：" if not approve_msg else ""
-            notice = f"【进群申请】{tip}\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}"
-            if level is not None:
-                notice += f"\n等级：{level}"
+            tip = "批准/驳回：" if approve is None else ""
+            notice = f"【进群申请】{tip}\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}\n等级：{level}"
             if comment:
                 notice += f"\n{comment}"
             if approve_msg:
