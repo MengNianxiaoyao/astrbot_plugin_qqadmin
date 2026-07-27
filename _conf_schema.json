@@ -51,6 +51,12 @@
           "黑词2"
         ]
       },
+      "join_no_match_msg": {
+        "description": "自动拒绝验证消息为空的进群申请",
+        "hint": "当用户申请加群时，验证消息为空时自动拒绝",
+        "type": "bool",
+        "default": false
+      },
       "join_no_match_reject": {
         "description": "自动拒绝未命中白词的进群申请",
         "hint": "当用户申请加群时，没命中进群关键词，则自动驳回申请",

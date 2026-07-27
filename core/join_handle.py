@@ -259,6 +259,8 @@ class JoinHandle:
             if keyword in comment:
                 comment = comment.split(keyword, 1)[1]
 
+            if not comment and await self.db.get(gid, "join_no_match_msg", False):
+                return False, "验证信息为空"
             lower_comment = comment.lower()
             # 3.命中进群黑词
             rkws = await self.db.get(gid, "join_reject_words", [])
@@ -334,7 +336,8 @@ class JoinHandle:
                         approve=approve,
                         reason="" if approve else reason,
                     )
-                    if not approve and reason == "黑名单用户":
+                    reasons = ["黑名单用户", "验证信息为空"]
+                    if not approve and reason in reasons:
                         return
                     approve_msg = f"自动{'批准' if approve else '驳回'}：{reason}"
                 except Exception as e:
@@ -344,12 +347,12 @@ class JoinHandle:
                 approve_msg = reason
 
             # 生成并发送通知
-            tip = "批准/驳回：" if approve is None else ""
-            notice = f"【进群申请】{tip}\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}\n等级：{level}"
+            tip = "批准/驳回" if approve is None else "自动审核"
+            notice = f"【进群申请 - {tip}】\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}\n等级：{level}"
             if comment:
                 notice += f"\n{comment}"
             if approve_msg:
-                notice += f"\n\n{approve_msg}"
+                notice += f"\n处理结果：{approve_msg}"
 
             group_config = self.db.get_group_snapshot(gid)
             if group_config.get("admin_audit", self.cfg.admin_audit):

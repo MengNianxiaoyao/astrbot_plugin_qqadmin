@@ -92,6 +92,7 @@ class QQAdminDB:
         "join_max_time": "进群尝试次数",
         "join_accept_words": "进群白词",
         "join_reject_words": "进群黑词",
+        "join_no_match_msg": "验证为空拒绝",
         "join_no_match_reject": "未中白词拒绝",
         "reject_word_block": "命中黑词拉黑",
         "allow_ids": "进群白名单",
