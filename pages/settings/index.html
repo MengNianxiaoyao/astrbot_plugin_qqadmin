@@ -9,6 +9,11 @@
 <body>
     <div class="page-shell">
         <section class="workspace-shell">
+            <div class="view-tabs" role="tablist">
+                <button class="view-tab is-active" data-view="group" role="tab" aria-selected="true">群配置</button>
+                <button class="view-tab" data-view="global" role="tab" aria-selected="false">全局名单</button>
+            </div>
+
             <div class="workspace-grid">
                 <aside id="groupListPanel" class="group-list-panel">
                     <div class="toolbar-stack">
@@ -37,7 +42,29 @@
                     <div id="groupDetailContent" class="detail-stack">
                         <div id="groupForm" class="form-stack"></div>
 
-                        <div class="sticky-actions">
+                        <div id="globalListPanel" class="detail-stack" style="display:none">
+                            <div class="global-list-tabs" role="tablist">
+                                <button class="global-list-tab is-active" data-global-type="allow" role="tab" aria-selected="true">白名单</button>
+                                <button class="global-list-tab" data-global-type="block" role="tab" aria-selected="false">黑名单</button>
+                            </div>
+                            <div id="globalListDisplay" class="global-list-display">
+                                <!-- chips rendered here -->
+                            </div>
+                            <div class="field">
+                                <div class="field-copy">
+                                    <div class="field-label">批量导入（每行一个QQ）</div>
+                                </div>
+                                <div class="field-control">
+                                    <textarea id="globalListBatchInput" placeholder="每行一个QQ号" rows="6"></textarea>
+                                </div>
+                            </div>
+                            <div class="sticky-actions">
+                                <button class="ghost-button" id="appendGlobalListBtn">添加保存</button>
+                                <button class="primary-button" id="overwriteGlobalListBtn">覆写保存</button>
+                            </div>
+                        </div>
+
+                        <div class="sticky-actions" id="groupActions">
                             <button class="ghost-button" id="resetGroupBtn">恢复当前项默认值</button>
                             <button class="primary-button" id="saveGroupBtn">保存当前项配置</button>
                         </div>

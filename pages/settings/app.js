@@ -39,7 +39,20 @@ const els = {
   refreshGroupsBtn: document.getElementById("refreshGroupsBtn"),
   saveGroupBtn: document.getElementById("saveGroupBtn"),
   resetGroupBtn: document.getElementById("resetGroupBtn"),
+  globalListPanel: document.getElementById("globalListPanel"),
+  globalListDisplay: document.getElementById("globalListDisplay"),
+  globalListBatchInput: document.getElementById("globalListBatchInput"),
+  overwriteGlobalListBtn: document.getElementById("overwriteGlobalListBtn"),
+  appendGlobalListBtn: document.getElementById("appendGlobalListBtn"),
+  groupActions: document.getElementById("groupActions"),
+  groupListPanel: document.getElementById("groupListPanel"),
+  workspaceGrid: document.querySelector(".workspace-grid"),
+  viewTabs: document.querySelectorAll(".view-tab"),
+  globalListTabs: document.querySelectorAll(".global-list-tab"),
 };
+
+let currentGlobalType = "allow";
+let globalListData = { allow: [], block: [] };
 
 function loadThemePreference() {
   try {
@@ -406,6 +419,138 @@ async function resetGroupConfig() {
   showToast(`群 ${target} 已恢复默认群配置`);
 }
 
+function switchView(view) {
+  const isGlobal = view === "global";
+
+  if (isGlobal) {
+    els.groupListPanel.classList.add("is-hidden");
+    els.workspaceGrid.classList.add("global-list-mode");
+  } else {
+    els.groupListPanel.classList.remove("is-hidden");
+    els.workspaceGrid.classList.remove("global-list-mode");
+  }
+
+  els.globalListPanel.style.display = isGlobal ? "flex" : "none";
+  els.groupForm.style.display = isGlobal ? "none" : "";
+  els.groupActions.style.display = isGlobal ? "none" : "";
+  els.currentGroupName.textContent = isGlobal ? "全局名单管理" : currentGroup?.group_info?.group_name || "未选择群";
+
+  els.viewTabs.forEach((tab) => {
+    const active = tab.dataset.view === view;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
+
+  if (isGlobal) {
+    loadGlobalLists();
+  }
+}
+
+async function loadGlobalLists() {
+  try {
+    const data = await api.safeGet("settings/global-list");
+    globalListData = data;
+    renderGlobalList();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function renderGlobalList() {
+  const items = globalListData[currentGlobalType] || [];
+  const container = els.globalListDisplay;
+  container.innerHTML = "";
+
+  const countBar = document.createElement("div");
+  countBar.className = "global-list-count";
+  countBar.textContent = `共 ${items.length} 个`;
+  container.appendChild(countBar);
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "global-list-empty";
+    empty.textContent = "当前名单为空。";
+    container.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement("div");
+  list.className = "global-list-rows";
+
+  items.forEach((uid, index) => {
+    const row = document.createElement("div");
+    row.className = "global-list-row";
+
+    const label = document.createElement("span");
+    label.className = "global-list-row-label";
+    label.textContent = uid;
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "global-list-row-del";
+    del.textContent = "删除";
+    del.addEventListener("click", () => {
+      globalListData[currentGlobalType] = items.filter((_, i) => i !== index);
+      renderGlobalList();
+    });
+
+    row.appendChild(label);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+
+  container.appendChild(list);
+}
+
+function getBatchItems() {
+  const text = els.globalListBatchInput.value.trim();
+  return text
+    ? text.split(/\n+/).map((s) => s.trim()).filter(Boolean)
+    : [];
+}
+
+function clearBatchInput() {
+  els.globalListBatchInput.value = "";
+}
+
+async function overwriteGlobalList() {
+  const items = getBatchItems();
+  try {
+    await api.safePost("settings/global-list", {
+      type: currentGlobalType,
+      items,
+    });
+    globalListData[currentGlobalType] = items;
+    clearBatchInput();
+    renderGlobalList();
+    showToast(`全局${currentGlobalType === "allow" ? "白名单" : "黑名单"}已覆写`);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function appendGlobalList() {
+  const batchItems = getBatchItems();
+  if (!batchItems.length) {
+    showToast("输入框为空", "error");
+    return;
+  }
+  const existingItems = globalListData[currentGlobalType] || [];
+  const merged = [...existingItems, ...batchItems];
+  try {
+    await api.safePost("settings/global-list", {
+      type: currentGlobalType,
+      items: merged,
+    });
+    globalListData[currentGlobalType] = merged;
+    clearBatchInput();
+    renderGlobalList();
+    showToast(`已添加 ${batchItems.length} 个`);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
 function bindEvents() {
   els.toggleThemeBtn.addEventListener("click", () => {
     cycleThemePreference();
@@ -450,6 +595,39 @@ function bindEvents() {
 
   els.groupSearchInput.addEventListener("input", () => {
     filterAndRenderGroups();
+  });
+
+  els.viewTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      switchView(tab.dataset.view);
+    });
+  });
+
+  els.globalListTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      els.globalListTabs.forEach((t) => {
+        t.classList.toggle("is-active", t === tab);
+        t.setAttribute("aria-selected", String(t === tab));
+      });
+      currentGlobalType = tab.dataset.globalType;
+      renderGlobalList();
+    });
+  });
+
+  els.overwriteGlobalListBtn.addEventListener("click", async () => {
+    try {
+      await overwriteGlobalList();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
+  });
+
+  els.appendGlobalListBtn.addEventListener("click", async () => {
+    try {
+      await appendGlobalList();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
   });
 }
 

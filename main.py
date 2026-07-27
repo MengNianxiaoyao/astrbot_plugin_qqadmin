@@ -22,7 +22,7 @@ from .core import (
     NormalHandle,
     NoticeHandle,
 )
-from .data import QQAdminDB
+from .data import QQAdminDB, QQAdminGlobalList
 from .group_info_cache import QQGroupInfoCache
 from .permission import (
     PermLevel,
@@ -44,12 +44,13 @@ class QQAdminPlugin(Star):
         self.normal = NormalHandle(self.cfg, self.db)
         self.notice = NoticeHandle(self, self.cfg)
         self.banpro = BanproHandle(self.cfg, self.db)
-        self.join = JoinHandle(self.cfg, self.db)
+        self.global_list = QQAdminGlobalList(self.cfg.data_dir)
+        self.join = JoinHandle(self.cfg, self.db, self.global_list)
         self.member = MemberHandle(self)
         self.file = FileHandle(self.cfg)
         self.curfew = CurfewHandle(self.context, self.cfg)
         self.llm = LLMHandle(self.context, self.cfg, self.db)
-        self.web = QQAdminWebController(context, self.cfg, self.db, self.group_cache)
+        self.web = QQAdminWebController(context, self.cfg, self.db, self.group_cache, self.global_list)
         self.web.register_routes()
 
     async def initialize(self):
@@ -358,6 +359,16 @@ class QQAdminPlugin(Star):
     ):
         "退群拉黑 开/关, 拉黑后下次进群直接自动拒绝"
         await self.join.handle_leave_block(event, mode)
+
+    @filter.command("全局白名单", perm_key="join")
+    @perm_required(PermLevel.ADMIN)
+    async def handle_global_allow(self, event: AiocqhttpMessageEvent):
+        await self.join.handle_global_allow(event)
+
+    @filter.command("全局黑名单", perm_key="join")
+    @perm_required(PermLevel.ADMIN)
+    async def handle_global_block(self, event: AiocqhttpMessageEvent):
+        await self.join.handle_global_block(event)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)

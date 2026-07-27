@@ -9,7 +9,7 @@ from typing import Any
 from astrbot.api import logger
 
 from .config import PluginConfig
-from .data import QQAdminDB
+from .data import QQAdminDB, QQAdminGlobalList
 from .group_info_cache import QQGroupInfoCache
 from .permission import perm_manager
 from .utils import parse_bool
@@ -19,10 +19,11 @@ FOLLOW_DEFAULT_KEY = "follow_default"
 
 
 class QQAdminPageService:
-    def __init__(self, cfg: PluginConfig, db: QQAdminDB, group_cache: QQGroupInfoCache):
+    def __init__(self, cfg: PluginConfig, db: QQAdminDB, group_cache: QQGroupInfoCache, global_list: QQAdminGlobalList | None = None):
         self.cfg = cfg
         self.db = db
         self.group_cache = group_cache
+        self.global_list = global_list or QQAdminGlobalList(cfg.data_dir)
         self.schema = self._load_schema(cfg.plugin_dir / "_conf_schema.json")
 
     @property
@@ -186,6 +187,22 @@ class QQAdminPageService:
         self.cfg.save_config()
         self.group_cache.invalidate()
         return self.get_default_group_config()
+
+    async def get_global_lists(self) -> dict[str, list[str]]:
+        return {
+            "allow": list(self.global_list.allow),
+            "block": list(self.global_list.block),
+        }
+
+    async def update_global_list(self, list_type: str, items: list[str]) -> list[str]:
+        clean = [str(i).strip() for i in items if str(i).strip()]
+        if list_type == "allow":
+            self.global_list.set_allow(clean)
+            return list(self.global_list.allow)
+        if list_type == "block":
+            self.global_list.set_block(clean)
+            return list(self.global_list.block)
+        raise ValueError("list_type must be 'allow' or 'block'")
 
     @staticmethod
     def _load_schema(schema_path: Path) -> dict[str, Any]:

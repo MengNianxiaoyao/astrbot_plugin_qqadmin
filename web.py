@@ -14,7 +14,7 @@ except ImportError:
     quart_request_obj = None
 
 from .config import PluginConfig
-from .data import QQAdminDB
+from .data import QQAdminDB, QQAdminGlobalList
 from .group_info_cache import QQGroupInfoCache
 from .page_service import QQAdminPageService
 
@@ -28,9 +28,10 @@ class QQAdminWebController:
         cfg: PluginConfig,
         db: QQAdminDB,
         group_cache: QQGroupInfoCache,
+        global_list: QQAdminGlobalList | None = None,
     ):
         self.context = context
-        self.service = QQAdminPageService(cfg, db, group_cache)
+        self.service = QQAdminPageService(cfg, db, group_cache, global_list)
 
     def register_routes(self) -> None:
         routes = [
@@ -65,6 +66,18 @@ class QQAdminWebController:
                 self.page_reset_group,
                 ["POST"],
                 "Reset one group config",
+            ),
+            (
+                "/settings/global-list",
+                self.page_get_global_lists,
+                ["GET"],
+                "Get global allow/block lists",
+            ),
+            (
+                "/settings/global-list",
+                self.page_update_global_list,
+                ["POST"],
+                "Update global allow/block list",
             ),
         ]
         for path, handler, methods, desc in routes:
@@ -162,4 +175,17 @@ class QQAdminWebController:
         result = await self.service.reset_group_config(group_id)
         return self._jsonify(
             {"ok": True, "message": "Group config reset", "data": result}
+        )
+
+    async def page_get_global_lists(self):
+        data = await self.service.get_global_lists()
+        return self._jsonify({"ok": True, "data": data})
+
+    async def page_update_global_list(self):
+        payload = await self._request().get_json(force=True, silent=True) or {}
+        list_type = payload.get("type", "")
+        items = payload.get("items", [])
+        result = await self.service.update_global_list(list_type, items)
+        return self._jsonify(
+            {"ok": True, "message": f"全局{'白名单' if list_type == 'allow' else '黑名单'}已更新", "data": result}
         )

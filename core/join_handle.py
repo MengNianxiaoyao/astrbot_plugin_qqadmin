@@ -6,14 +6,15 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 
 from ..config import PluginConfig
-from ..data import QQAdminDB
+from ..data import QQAdminDB, QQAdminGlobalList
 from ..utils import get_nickname, get_reply_message_str, parse_bool
 
 
 class JoinHandle:
-    def __init__(self, config: PluginConfig, db: QQAdminDB):
+    def __init__(self, config: PluginConfig, db: QQAdminDB, global_list: QQAdminGlobalList | None = None):
         self.cfg = config
         self.db = db
+        self.global_list = global_list or QQAdminGlobalList(config.data_dir)
         self._fail: dict[str, int] = {}
 
     async def _send_admin(self, client: CQHttp, message: str):
@@ -103,22 +104,33 @@ class JoinHandle:
             time = await self.db.get(gid, "join_max_time")
             await event.send(event.plain_result(f"本群进群可尝试次数：{time} 次"))
 
-    async def _handle_id_list(self, event: AiocqhttpMessageEvent, field: str, label: str):
-        gid = event.get_group_id()
+    async def _handle_id_list(self, event: AiocqhttpMessageEvent, field: str, label: str, global_mode: bool = False):
         raw = event.message_str.partition(" ")[2]
+        gid = event.get_group_id()
+        prefix = "全局" if global_mode else "本群进群"
+
+        if global_mode:
+            lst = self.global_list.allow if field == "allow_ids" else self.global_list.block
+        else:
+            lst = await self.db.get(gid, field, [])
 
         if not raw:
-            ids = await self.db.get(gid, field, [])
-            await event.send(event.plain_result(f"本群进群{label}：{ids}"))
+            await event.send(event.plain_result(f"{prefix}{label}：{lst}"))
             return
 
         if all(tok.isdigit() for tok in raw.split()):
             new_ids = raw.split()
-            await self.db.set(gid, field, new_ids)
-            await event.send(event.plain_result(f"{label}已覆写为：{' '.join(new_ids)}"))
+            if global_mode:
+                if field == "allow_ids":
+                    self.global_list.set_allow(new_ids)
+                else:
+                    self.global_list.set_block(new_ids)
+            else:
+                await self.db.set(gid, field, new_ids)
+            await event.send(event.plain_result(f"{prefix}{label}已覆写为：{' '.join(new_ids)}"))
             return
 
-        curr = set(await self.db.get(gid, field, []))
+        curr = set(lst)
         added, removed = [], []
         for tok in raw.split():
             if tok.startswith("+") and tok[1:].isdigit():
@@ -132,9 +144,16 @@ class JoinHandle:
                     curr.discard(uid)
                     removed.append(uid)
 
-        await self.db.set(gid, field, list(curr))
+        result = list(curr)
+        if global_mode:
+            if field == "allow_ids":
+                self.global_list.set_allow(result)
+            else:
+                self.global_list.set_block(result)
+        else:
+            await self.db.set(gid, field, result)
 
-        reply = [f"本群进群{label}"]
+        reply = [f"{prefix}{label}"]
         if added:
             reply.append(f"新增：{'、'.join(added)}")
         if removed:
@@ -148,6 +167,12 @@ class JoinHandle:
 
     async def handle_block_ids(self, event: AiocqhttpMessageEvent):
         await self._handle_id_list(event, "block_ids", "黑名单")
+
+    async def handle_global_allow(self, event: AiocqhttpMessageEvent):
+        await self._handle_id_list(event, "allow_ids", "白名单", global_mode=True)
+
+    async def handle_global_block(self, event: AiocqhttpMessageEvent):
+        await self._handle_id_list(event, "block_ids", "黑名单", global_mode=True)
 
     async def handle_join_ban(self, event: AiocqhttpMessageEvent, time: int | None):
         gid = event.get_group_id()
@@ -193,6 +218,13 @@ class JoinHandle:
             await event.send(event.plain_result(f"本群退群拉黑：{status}"))
 
     # ---------辅助函数-----------------
+    async def _add_to_block(self, gid: str, uid: str):
+        """向群黑名单或全局黑名单添加用户（根据 use_global_block 判断）"""
+        if await self.db.get(gid, "use_global_block", False):
+            self.global_list.add_block(uid)
+        else:
+            await self.db.add(gid, "block_ids", uid)
+
     async def should_approve(
         self,
         gid: str,
@@ -202,12 +234,14 @@ class JoinHandle:
     ) -> tuple[bool | None, str]:
         """判断是否让该用户入群，返回原因"""
         # 0.白名单用户直接通过
-        allow_ids = await self.db.get(gid, "allow_ids", [])
+        use_global_allow = await self.db.get(gid, "use_global_allow", False)
+        allow_ids = self.global_list.allow if use_global_allow else await self.db.get(gid, "allow_ids", [])
         if uid in allow_ids:
             return True, "白名单用户"
 
         # 1.黑名单用户
-        block_ids = await self.db.get(gid, "block_ids", [])
+        use_global_block = await self.db.get(gid, "use_global_block", False)
+        block_ids = self.global_list.block if use_global_block else await self.db.get(gid, "block_ids", [])
         if uid in block_ids:
             return False, "黑名单用户"
 
@@ -230,7 +264,7 @@ class JoinHandle:
             rkws = await self.db.get(gid, "join_reject_words", [])
             if any(rk.lower() in lower_comment for rk in rkws):
                 if await self.db.get(gid, "reject_word_block", False):
-                    await self.db.add(gid, "block_ids", uid)
+                    await self._add_to_block(gid, uid)
                     return False, "命中进群黑词，已拉黑"
                 return False, "命中进群黑词"
 
@@ -245,7 +279,7 @@ class JoinHandle:
             key = f"{gid}_{uid}"
             self._fail[key] = self._fail.get(key, 0) + 1
             if self._fail[key] > max_fail:
-                await self.db.add(gid, "block_ids", uid)
+                await self._add_to_block(gid, uid)
                 return False, f"进群尝试次数已达上限({max_fail}次)，已拉黑"
 
         # 6.未命中白词时, 自动驳回
@@ -332,9 +366,10 @@ class JoinHandle:
             should_block = await self.db.get(gid, "leave_block", False)
             should_notify = await self.db.get(gid, "leave_notify", False)
             if should_block:
-                allow_ids = await self.db.get(gid, "allow_ids", [])
+                use_global_allow = await self.db.get(gid, "use_global_allow", False)
+                allow_ids = self.global_list.allow if use_global_allow else await self.db.get(gid, "allow_ids", [])
                 if uid not in allow_ids:
-                    await self.db.add(gid, "block_ids", uid)
+                    await self._add_to_block(gid, uid)
                     did_block = True
                 else:
                     did_block = False

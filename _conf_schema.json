@@ -65,7 +65,7 @@
       },
       "allow_ids": {
         "description": "进群白名单",
-        "hint": "用户加入群聊时，若用户QQ在白名单中，则自动通过。白名单用户退群时也不会被自动拉黑",
+        "hint": "用户加入群聊时，若用户QQ在白名单中，则自动通过，退群时也不会被自动拉黑",
         "type": "list",
         "default": []
       },
@@ -74,6 +74,18 @@
         "hint": "用户加入群聊时，若用户QQ在黑名单中，则自动拒绝",
         "type": "list",
         "default": []
+      },
+      "use_global_allow": {
+        "description": "使用全局白名单",
+        "hint": "开启后，使用全局白名单（JSON文件）替代本群白名单",
+        "type": "bool",
+        "default": false
+      },
+      "use_global_block": {
+        "description": "使用全局黑名单",
+        "hint": "开启后，使用全局黑名单（JSON文件）替代本群黑名单，自动拉黑操作也将写入全局黑名单",
+        "type": "bool",
+        "default": false
       },
       "join_welcome": {
         "description": "进群欢迎词",
