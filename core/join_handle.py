@@ -11,11 +11,23 @@ from ..utils import get_nickname, get_reply_message_str, parse_bool
 
 
 class JoinHandle:
-    def __init__(self, config: PluginConfig, db: QQAdminDB, global_list: QQAdminGlobalList | None = None):
+    def __init__(self, config: PluginConfig, db: QQAdminDB, global_list: QQAdminGlobalList | None = None, group_cache=None):
         self.cfg = config
         self.db = db
         self.global_list = global_list or QQAdminGlobalList(config.data_dir)
+        self._group_cache = group_cache
         self._fail: dict[str, int] = {}
+
+    async def _get_group_name(self, gid: str) -> str:
+        if self._group_cache:
+            try:
+                group = await self._group_cache.get_group(gid)
+                name = group.get("group_name", "")
+                if name:
+                    return name
+            except Exception:
+                pass
+        return gid
 
     async def _send_admin(self, client: CQHttp, message: str):
         for admin_id in self.cfg.admins_id:
@@ -347,8 +359,9 @@ class JoinHandle:
                 approve_msg = reason
 
             # 生成并发送通知
+            group_name = await self._get_group_name(gid)
             tip = "批准/驳回" if approve is None else "自动审核"
-            notice = f"【进群申请-{tip}】\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}\n等级：{level}"
+            notice = f"【进群申请-{tip}】\n群：{group_name}\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}\n等级：{level}"
             if comment:
                 notice += f"\n{comment}"
             if approve_msg:
@@ -414,8 +427,8 @@ class JoinHandle:
             return "未引用任何【进群申请】"
         lines = text.split("\n")
         if "进群申请" in text and len(lines) >= 4:
-            nickname = lines[1].split("：")[1]  # 第2行冒号后文本为nickname
-            flag = lines[3].split("：")[1]  # 第4行冒号后文本为flag
+            nickname = lines[2].split("：")[1]  # 第3行冒号后文本为nickname
+            flag = lines[4].split("：")[1]  # 第5行冒号后文本为flag
             try:
                 await event.bot.set_group_add_request(
                     flag=flag, sub_type="add", approve=approve, reason=extra
