@@ -9,7 +9,6 @@ import {
 } from "./group-view.js";
 
 const bridge = window.AstrBotPluginPage;
-const root = document.documentElement;
 const themeMediaQuery =
   typeof window.matchMedia === "function"
     ? window.matchMedia("(prefers-color-scheme: dark)")
@@ -111,6 +110,7 @@ function resolveThemeMode(context) {
 }
 
 function applyThemeMode(themeMode) {
+  const root = document.documentElement;
   root.dataset.theme = themeMode;
   root.style.colorScheme = themeMode;
 }
@@ -168,15 +168,13 @@ function showToast(message, type = "success") {
 }
 
 function getDefaultGroupConfigValues() {
-  const groups = Array.isArray(bootstrapData?.groups) ? bootstrapData.groups : [];
-  const defaultGroup = groups.find((group) => group.group_id === DEFAULT_GROUP_ID);
-  if (defaultGroup?.config) {
-    return defaultGroup.config;
-  }
   if (currentGroup?.group_id === DEFAULT_GROUP_ID) {
-    return currentGroup?.config || {};
+    return currentGroup.config || {};
   }
-  return {};
+  const defaultGroup = bootstrapData?.groups?.find(
+    (g) => g.group_id === DEFAULT_GROUP_ID
+  );
+  return defaultGroup?.config || {};
 }
 
 function buildGroupFormValues(groupPayload) {
@@ -196,7 +194,7 @@ function isGroupFieldDisabled(path) {
   if (!currentGroup || currentGroup.is_default_group) {
     return false;
   }
-  if (!Boolean(currentGroup.config?.[FOLLOW_DEFAULT_KEY])) {
+  if (!currentGroup.config?.[FOLLOW_DEFAULT_KEY]) {
     return false;
   }
   return path !== FOLLOW_DEFAULT_KEY;
@@ -229,7 +227,7 @@ function applyGroupList(groups) {
 
 function scheduleGroupRoleSync(options = {}) {
   const requestToken = ++groupRoleSyncToken;
-  void syncGroupRoles(requestToken, options);
+  syncGroupRoles(requestToken, options);
 }
 
 function filterGroups() {
@@ -422,18 +420,13 @@ async function resetGroupConfig() {
 function switchView(view) {
   const isGlobal = view === "global";
 
-  if (isGlobal) {
-    els.groupListPanel.classList.add("is-hidden");
-    els.workspaceGrid.classList.add("global-list-mode");
-  } else {
-    els.groupListPanel.classList.remove("is-hidden");
-    els.workspaceGrid.classList.remove("global-list-mode");
-  }
-
-  els.globalListPanel.style.display = isGlobal ? "flex" : "none";
+  els.workspaceGrid.classList.toggle("global-list-mode", isGlobal);
+  els.globalListPanel.classList.toggle("is-hidden", !isGlobal);
   els.groupForm.style.display = isGlobal ? "none" : "";
   els.groupActions.style.display = isGlobal ? "none" : "";
-  els.currentGroupName.textContent = isGlobal ? "全局名单管理" : currentGroup?.group_info?.group_name || "未选择群";
+  els.currentGroupName.textContent = isGlobal
+    ? "全局配置"
+    : currentGroup?.group_info?.group_name || "未选择群";
 
   els.viewTabs.forEach((tab) => {
     const active = tab.dataset.view === view;
@@ -606,8 +599,9 @@ function bindEvents() {
   els.globalListTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       els.globalListTabs.forEach((t) => {
-        t.classList.toggle("is-active", t === tab);
-        t.setAttribute("aria-selected", String(t === tab));
+        const active = t === tab;
+        t.classList.toggle("is-active", active);
+        t.setAttribute("aria-selected", String(active));
       });
       currentGlobalType = tab.dataset.globalType;
       renderGlobalList();

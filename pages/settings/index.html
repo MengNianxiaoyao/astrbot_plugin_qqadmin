@@ -39,23 +39,19 @@
 
                 <section id="groupDetailPanel" class="group-detail-panel">
                     <h3 id="currentGroupName" class="detail-page-title">未选择群</h3>
-                    <div id="groupDetailContent" class="detail-stack">
+                    <div class="detail-stack">
                         <div id="groupForm" class="form-stack"></div>
 
-                        <div id="globalListPanel" class="detail-stack" style="display:none">
+                        <div id="globalListPanel" class="detail-stack is-hidden">
                             <div class="global-list-tabs" role="tablist">
                                 <button class="global-list-tab is-active" data-global-type="allow" role="tab" aria-selected="true">白名单</button>
                                 <button class="global-list-tab" data-global-type="block" role="tab" aria-selected="false">黑名单</button>
                             </div>
-                            <div id="globalListDisplay" class="global-list-display">
-                                <!-- chips rendered here -->
-                            </div>
+                            <div id="globalListDisplay" class="global-list-display"></div>
                             <div class="field">
-                                <div class="field-copy">
-                                    <div class="field-label">批量导入（每行一个QQ）</div>
-                                </div>
+                                <div class="field-label">批量导入（每行一个QQ）</div>
                                 <div class="field-control">
-                                    <textarea id="globalListBatchInput" placeholder="每行一个QQ号" rows="14"></textarea>
+                                    <textarea id="globalListBatchInput" placeholder="每行一个QQ号"></textarea>
                                 </div>
                             </div>
                             <div class="sticky-actions">

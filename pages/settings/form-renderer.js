@@ -2,20 +2,11 @@ function pathJoin(prefix, key) {
   return prefix ? `${prefix}.${key}` : key;
 }
 
-function getCollapsedObjectPaths(options = {}) {
-  if (options.collapsedObjectPaths instanceof Set) {
-    return options.collapsedObjectPaths;
-  }
-  if (Array.isArray(options.collapsedObjectPaths)) {
-    return new Set(options.collapsedObjectPaths);
-  }
-  return new Set();
-}
-
 function normalizeOptions(options = {}) {
+  const raw = options.collapsedObjectPaths;
   return {
     ...options,
-    collapsedObjectPaths: getCollapsedObjectPaths(options),
+    collapsedObjectPaths: raw instanceof Set ? raw : new Set(raw),
   };
 }
 

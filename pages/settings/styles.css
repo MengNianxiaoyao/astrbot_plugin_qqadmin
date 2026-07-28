@@ -137,6 +137,10 @@ img {
     overflow: hidden;
 }
 
+.workspace-grid.global-list-mode .group-list-panel {
+    display: none;
+}
+
 .workspace-grid.global-list-mode {
     grid-template-columns: minmax(0, 1fr);
 }
@@ -817,125 +821,160 @@ img {
 
 /* ---- 视图切换标签 ---- */
 .view-tabs {
-  display: flex;
-  gap: 0;
-  margin-bottom: 14px;
-  flex-shrink: 0;
+    display: flex;
+    gap: 0;
+    margin-bottom: 14px;
+    flex-shrink: 0;
 }
 
 .view-tab {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  padding: 8px 18px;
-  font-size: 13px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color 0.16s, border-color 0.16s;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 8px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.16s, border-color 0.16s;
 }
 
 .view-tab.is-active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
 }
 
 /* ---- 全局名单管理 ---- */
 .global-list-tabs {
-  display: flex;
-  gap: 0;
-  margin-bottom: 12px;
-  flex-shrink: 0;
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    flex-shrink: 0;
 }
 
 .global-list-tab {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  padding: 6px 14px;
-  font-size: 12px;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color 0.16s, border-bottom-color 0.16s;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.16s, border-bottom-color 0.16s;
 }
 
 .global-list-tab.is-active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+}
+
+#globalListPanel.detail-stack {
+    display: grid;
+    grid-template-rows: auto 1fr 1fr auto;
+    gap: 14px;
+    overflow: hidden;
+}
+
+#globalListPanel .global-list-display {
+    overflow-y: auto;
+}
+
+#globalListPanel .field {
+    display: flex;
+    flex-direction: column;
+}
+
+#globalListPanel .field-control {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#globalListPanel .field-control textarea {
+    flex: 1;
+}
+
+#globalListPanel .global-list-display,
+#globalListPanel .field,
+#globalListPanel .field-control,
+#globalListPanel .field-control textarea {
+    min-height: 0;
+}
+
+#globalListPanel .global-list-rows {
+    max-height: none;
 }
 
 .global-list-display {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 48px;
-  padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0;
 }
 
 .global-list-count {
-  font-size: 13px;
-  color: var(--muted);
-  padding: 4px 0;
+    font-size: 13px;
+    color: var(--muted);
+    padding: 4px 0;
 }
 
 .global-list-empty {
-  display: grid;
-  place-items: center;
-  min-height: 80px;
-  color: var(--muted);
-  font-size: 13px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    min-height: 80px;
+    color: var(--muted);
+    font-size: 13px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
 }
 
 .global-list-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  max-height: 270px;
-  overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    max-height: 270px;
+    overflow-y: auto;
+}
+
+#globalListPanel .global-list-rows {
+    max-height: none;
 }
 
 .global-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
 }
 
 .global-list-row:last-child {
-  border-bottom: none;
+    border-bottom: none;
 }
 
 .global-list-row-label {
-  font-family: "Consolas", "SFMono-Regular", monospace;
+    font-family: "Consolas", "SFMono-Regular", monospace;
 }
 
 .global-list-row-del {
-  border: none;
-  background: transparent;
-  color: var(--danger);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  opacity: 0.7;
-  transition: opacity 0.16s, background 0.16s;
+    border: none;
+    background: transparent;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    opacity: 0.7;
+    transition: opacity 0.16s, background 0.16s;
 }
 
 .global-list-row-del:hover {
-  opacity: 1;
-  background: var(--danger-soft);
-}
-
-.detail-stack > .detail-stack {
-  margin: 0;
-  padding: 0;
+    opacity: 1;
+    background: var(--danger-soft);
 }
 
 @media (max-width: 1180px) {
@@ -961,5 +1000,22 @@ img {
 
     .field-grid.single-column .field-control {
         justify-content: flex-start;
+    }
+
+    #globalListPanel.detail-stack {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto 1fr auto;
+    }
+    #globalListPanel .global-list-tabs,
+    #globalListPanel .sticky-actions {
+        grid-column: 1 / -1;
+    }
+    #globalListPanel .global-list-display {
+        grid-column: 1;
+        grid-row: 2;
+    }
+    #globalListPanel .field {
+        grid-column: 2;
+        grid-row: 2;
     }
 }
