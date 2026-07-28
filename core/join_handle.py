@@ -339,7 +339,7 @@ class JoinHandle:
                     reasons = ["黑名单用户", "验证信息为空"]
                     if not approve and reason in reasons:
                         return
-                    approve_msg = f"自动{'批准' if approve else '驳回'}：{reason}"
+                    approve_msg = f"自动{'批准' if approve else '驳回'}，{reason}"
                 except Exception as e:
                     logger.warning(f"set_group_add_request failed: {e}")
                     return
@@ -348,7 +348,7 @@ class JoinHandle:
 
             # 生成并发送通知
             tip = "批准/驳回" if approve is None else "自动审核"
-            notice = f"【进群申请 - {tip}】\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}\n等级：{level}"
+            notice = f"【进群申请-{tip}】\n昵称：{nickname}\nQQ：{uid}\nflag：{flag}\n等级：{level}"
             if comment:
                 notice += f"\n{comment}"
             if approve_msg:
@@ -413,7 +413,7 @@ class JoinHandle:
         if not text:
             return "未引用任何【进群申请】"
         lines = text.split("\n")
-        if "【进群申请】" in text and len(lines) >= 4:
+        if "进群申请" in text and len(lines) >= 4:
             nickname = lines[1].split("：")[1]  # 第2行冒号后文本为nickname
             flag = lines[3].split("：")[1]  # 第4行冒号后文本为flag
             try:
@@ -430,6 +430,8 @@ class JoinHandle:
             except Exception as e:
                 logger.error(f"处理进群申请失败: {e}")
                 return "这条申请处理过了或者格式不对"
+        else:
+            return "引用的可能不是【进群申请】"
 
     async def agree_add_group(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """批准进群申请"""
