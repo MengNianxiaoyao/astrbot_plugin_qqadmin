@@ -807,6 +807,38 @@ img {
     background: rgba(172, 190, 210, 0.12);
 }
 
+/* ---- 确认弹窗 ---- */
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.36);
+    display: grid;
+    place-items: center;
+    z-index: 50;
+    animation: fade-in 0.15s ease;
+}
+
+.confirm-box {
+    background: var(--bg);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    min-width: 280px;
+    max-width: 400px;
+    box-shadow: var(--shadow);
+}
+
+.confirm-message {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
 @keyframes fade-in {
     from {
         opacity: 0;

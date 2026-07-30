@@ -482,7 +482,9 @@ function renderGlobalList() {
     del.type = "button";
     del.className = "global-list-row-del";
     del.textContent = "删除";
-    del.addEventListener("click", () => {
+    del.addEventListener("click", async () => {
+      const ok = await showConfirm(`确定删除 ${uid} 吗？`);
+      if (!ok) return;
       globalListData[currentGlobalType] = items.filter((_, i) => i !== index);
       renderGlobalList();
     });
@@ -493,6 +495,52 @@ function renderGlobalList() {
   });
 
   container.appendChild(list);
+}
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve(false);
+      }
+    });
+
+    const box = document.createElement("div");
+    box.className = "confirm-box";
+
+    const msg = document.createElement("p");
+    msg.className = "confirm-message";
+    msg.textContent = message;
+
+    const actions = document.createElement("div");
+    actions.className = "confirm-actions";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "ghost-button";
+    cancelBtn.textContent = "取消";
+    cancelBtn.addEventListener("click", () => {
+      overlay.remove();
+      resolve(false);
+    });
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.className = "primary-button";
+    confirmBtn.textContent = "确定";
+    confirmBtn.addEventListener("click", () => {
+      overlay.remove();
+      resolve(true);
+    });
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    box.appendChild(msg);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  });
 }
 
 function getBatchItems() {
@@ -508,6 +556,8 @@ function clearBatchInput() {
 
 async function overwriteGlobalList() {
   const items = getBatchItems();
+  const ok = await showConfirm(`确定覆写全局${currentGlobalType === "allow" ? "白名单" : "黑名单"}吗？`);
+  if (!ok) return;
   try {
     await api.safePost("settings/global-list", {
       type: currentGlobalType,
