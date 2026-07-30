@@ -545,9 +545,9 @@ function showConfirm(message) {
 
 function getBatchItems() {
   const text = els.globalListBatchInput.value.trim();
-  return text
-    ? text.split(/\n+/).map((s) => s.trim()).filter(Boolean)
-    : [];
+  if (!text) return [];
+  const items = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  return [...new Set(items)];
 }
 
 function clearBatchInput() {
@@ -579,7 +579,13 @@ async function appendGlobalList() {
     return;
   }
   const existingItems = globalListData[currentGlobalType] || [];
-  const merged = [...existingItems, ...batchItems];
+  const existingSet = new Set(existingItems);
+  const newItems = batchItems.filter((item) => !existingSet.has(item));
+  if (!newItems.length) {
+    showToast("所有数据均已存在，无需添加", "error");
+    return;
+  }
+  const merged = [...existingItems, ...newItems];
   try {
     await api.safePost("settings/global-list", {
       type: currentGlobalType,
@@ -588,7 +594,9 @@ async function appendGlobalList() {
     globalListData[currentGlobalType] = merged;
     clearBatchInput();
     renderGlobalList();
-    showToast(`已添加 ${batchItems.length} 个`);
+    const skipped = batchItems.length - newItems.length;
+    const msg = skipped > 0 ? `已添加 ${newItems.length} 个（${skipped} 个重复已跳过）` : `已添加 ${newItems.length} 个`;
+    showToast(msg);
   } catch (error) {
     showToast(error.message, "error");
   }
