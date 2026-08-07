@@ -262,11 +262,7 @@ img {
 }
 
 .group-card.is-active {
-    background: rgba(185, 99, 44, 0.12);
-}
-
-[data-theme="dark"] .group-card.is-active {
-    background: rgba(125, 169, 216, 0.16);
+    background: var(--accent-soft);
 }
 
 .group-card-avatar {
@@ -364,7 +360,8 @@ img {
     line-height: 1;
 }
 
-.soft-badge {
+.soft-badge,
+.config-badge {
     background: rgba(112, 88, 60, 0.08);
 }
 
@@ -378,13 +375,7 @@ img {
     color: var(--success);
 }
 
-.status-badge.warn {
-    background: var(--warn-soft);
-    color: var(--warn);
-}
-
 .config-badge {
-    background: rgba(112, 88, 60, 0.08);
     color: var(--text);
 }
 
@@ -491,10 +482,6 @@ img {
     background: transparent;
     border-radius: 0;
     padding: 0;
-}
-
-[data-theme="dark"] .form-object-toggle-action {
-    color: var(--muted);
 }
 
 .form-object-body {
@@ -859,18 +846,28 @@ img {
     flex-shrink: 0;
 }
 
-.view-tab {
+.view-tab,
+.global-list-tab {
     border: none;
     background: transparent;
     color: var(--muted);
-    padding: 8px 18px;
-    font-size: 13px;
     cursor: pointer;
     border-bottom: 2px solid transparent;
-    transition: color 0.16s, border-color 0.16s;
+    transition: color 0.16s, border-bottom-color 0.16s;
 }
 
-.view-tab.is-active {
+.view-tab {
+    padding: 8px 18px;
+    font-size: 13px;
+}
+
+.global-list-tab {
+    padding: 6px 14px;
+    font-size: 12px;
+}
+
+.view-tab.is-active,
+.global-list-tab.is-active {
     color: var(--text);
     border-bottom-color: var(--accent);
     font-weight: 600;
@@ -882,23 +879,6 @@ img {
     gap: 0;
     margin-bottom: 12px;
     flex-shrink: 0;
-}
-
-.global-list-tab {
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    padding: 6px 14px;
-    font-size: 12px;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: color 0.16s, border-bottom-color 0.16s;
-}
-
-.global-list-tab.is-active {
-    color: var(--text);
-    border-bottom-color: var(--accent);
-    font-weight: 600;
 }
 
 #globalListPanel.detail-stack {
