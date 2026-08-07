@@ -7,13 +7,9 @@ import {
   renderGroupCards,
   renderGroupDetailHeader,
 } from "./group-view.js";
+import { createThemeController } from "./theme.js";
 
 const bridge = window.AstrBotPluginPage;
-const themeMediaQuery =
-  typeof window.matchMedia === "function"
-    ? window.matchMedia("(prefers-color-scheme: dark)")
-    : null;
-const THEME_STORAGE_KEY = "qqadmin-page-theme-mode";
 const DEFAULT_GROUP_ID = "__default__";
 const COLLAPSED_GROUP_OBJECT_PATHS = new Set(["perms"]);
 const FOLLOW_DEFAULT_KEY = "follow_default";
@@ -23,8 +19,7 @@ let bootstrapData = null;
 let currentGroup = null;
 let allGroups = [];
 let detachContextHandler = null;
-let detachSystemThemeHandler = null;
-let themePreference = loadThemePreference();
+let themeController = null;
 let groupRoleSyncToken = 0;
 let formDirty = false;
 
@@ -54,109 +49,9 @@ const els = {
 let currentGlobalType = "allow";
 let globalListData = { allow: [], block: [] };
 
-function loadThemePreference() {
-  try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark" || stored === "auto") {
-      return stored;
-    }
-  } catch {}
-  return "auto";
-}
-
-function saveThemePreference() {
-  try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
-  } catch {}
-}
-
-function getThemeButtonLabel() {
-  if (themePreference === "dark") {
-    return "主题：深色";
-  }
-  if (themePreference === "light") {
-    return "主题：浅色";
-  }
-  return "主题：自动";
-}
-
 function updateThemeButton() {
-  if (els.toggleThemeBtn) {
-    els.toggleThemeBtn.textContent = getThemeButtonLabel();
-  }
-}
-
-function getBridgeThemeMode(context) {
-  if (context?.theme === "dark" || context?.theme === "light") {
-    return context.theme;
-  }
-  return null;
-}
-
-function getSystemThemeMode() {
-  return themeMediaQuery?.matches ? "dark" : "light";
-}
-
-function resolveThemeMode(context) {
-  if (themePreference === "dark" || themePreference === "light") {
-    return themePreference;
-  }
-
-  const bridgeThemeMode = getBridgeThemeMode(context);
-  if (bridgeThemeMode) {
-    return bridgeThemeMode;
-  }
-
-  return getSystemThemeMode();
-}
-
-function applyThemeMode(themeMode) {
-  const root = document.documentElement;
-  root.dataset.theme = themeMode;
-  root.style.colorScheme = themeMode;
-}
-
-function syncThemeFromContext(context) {
-  applyThemeMode(resolveThemeMode(context));
-  updateThemeButton();
-}
-
-function cycleThemePreference() {
-  if (themePreference === "auto") {
-    themePreference = "dark";
-  } else if (themePreference === "dark") {
-    themePreference = "light";
-  } else {
-    themePreference = "auto";
-  }
-  saveThemePreference();
-  syncThemeFromContext(bridge?.getContext?.());
-}
-
-function bindSystemTheme() {
-  if (!themeMediaQuery) {
-    return;
-  }
-
-  const handleThemeChange = () => {
-    if (themePreference === "auto") {
-      applyThemeMode(resolveThemeMode(bridge?.getContext?.()));
-    }
-  };
-
-  if (typeof themeMediaQuery.addEventListener === "function") {
-    themeMediaQuery.addEventListener("change", handleThemeChange);
-    detachSystemThemeHandler = () => {
-      themeMediaQuery.removeEventListener("change", handleThemeChange);
-    };
-    return;
-  }
-
-  if (typeof themeMediaQuery.addListener === "function") {
-    themeMediaQuery.addListener(handleThemeChange);
-    detachSystemThemeHandler = () => {
-      themeMediaQuery.removeListener(handleThemeChange);
-    };
+  if (els.toggleThemeBtn && themeController) {
+    els.toggleThemeBtn.textContent = themeController.getButtonLabel();
   }
 }
 
@@ -168,27 +63,19 @@ function showToast(message, type = "success") {
   setTimeout(() => node.remove(), 2600);
 }
 
-function getDefaultGroupConfigValues() {
-  if (currentGroup?.group_id === DEFAULT_GROUP_ID) {
-    return currentGroup.config || {};
+function buildGroupFormValues(groupPayload) {
+  const currentValues = groupPayload?.config || {};
+  const followDefault = Boolean(currentValues[FOLLOW_DEFAULT_KEY]);
+  if (!followDefault || groupPayload?.is_default_group) {
+    return currentValues;
   }
   const defaultGroup = bootstrapData?.groups?.find(
     (g) => g.group_id === DEFAULT_GROUP_ID
   );
-  return defaultGroup?.config || {};
-}
-
-function buildGroupFormValues(groupPayload) {
-  const defaultValues = getDefaultGroupConfigValues();
-  const currentValues = groupPayload?.config || {};
-  const followDefault = Boolean(currentValues[FOLLOW_DEFAULT_KEY]);
-  const mergedValues = followDefault && !groupPayload?.is_default_group
-    ? {
-        ...defaultValues,
-        [FOLLOW_DEFAULT_KEY]: true,
-      }
-    : currentValues;
-  return mergedValues;
+  return {
+    ...(defaultGroup?.config || {}),
+    [FOLLOW_DEFAULT_KEY]: true,
+  };
 }
 
 function isGroupFieldDisabled(path) {
@@ -216,12 +103,8 @@ function updateGroupActionState() {
     : "保存当前项配置";
 }
 
-function normalizeGroups(groups) {
-  return Array.isArray(groups) ? groups : [];
-}
-
 function applyGroupList(groups) {
-  allGroups = normalizeGroups(groups);
+  allGroups = Array.isArray(groups) ? groups : [];
   bootstrapData.groups = allGroups;
   filterAndRenderGroups();
 }
@@ -231,22 +114,18 @@ function scheduleGroupRoleSync(options = {}) {
   syncGroupRoles(requestToken, options);
 }
 
-function filterGroups() {
+function filterAndRenderGroups() {
   const keyword = String(els.groupSearchInput.value || "")
     .trim()
     .toLowerCase();
-  if (!keyword) {
-    return allGroups;
-  }
-  return allGroups.filter((group) => {
-    const groupId = String(group.group_id || "").toLowerCase();
-    const groupName = String(group.group_name || "").toLowerCase();
-    return groupId.includes(keyword) || groupName.includes(keyword);
-  });
-}
+  const groups = keyword
+    ? allGroups.filter((group) => {
+        const groupId = String(group.group_id || "").toLowerCase();
+        const groupName = String(group.group_name || "").toLowerCase();
+        return groupId.includes(keyword) || groupName.includes(keyword);
+      })
+    : allGroups;
 
-function filterAndRenderGroups() {
-  const groups = filterGroups();
   els.groupListCount.textContent = `${groups.length} 个群`;
   renderGroupCards({
     root: els.groupList,
@@ -638,7 +517,7 @@ async function appendGlobalList() {
 
 function bindEvents() {
   els.toggleThemeBtn.addEventListener("click", () => {
-    cycleThemePreference();
+    themeController?.cyclePreference();
   });
 
   els.refreshGroupsBtn.addEventListener("click", async () => {
@@ -723,9 +602,13 @@ function bindEvents() {
 }
 
 async function init() {
-  bindSystemTheme();
+  themeController = createThemeController({
+    getContext: () => bridge?.getContext?.(),
+    onModeChange: updateThemeButton,
+  });
+  themeController.bind();
   updateThemeButton();
-  applyThemeMode(resolveThemeMode(null));
+  themeController.sync(null);
 
   if (!bridge) {
     return;
@@ -745,15 +628,15 @@ async function init() {
           setTimeout(() => reject(new Error("Bridge ready timeout")), 5000)
         ),
       ]);
-      syncThemeFromContext(context);
+      themeController.sync(context);
     }
 
     if (typeof bridge.onContext === "function") {
       detachContextHandler = bridge.onContext((context) => {
-        syncThemeFromContext(context);
+        themeController.sync(context);
       });
     } else {
-      syncThemeFromContext(bridge.getContext?.());
+      themeController.sync(bridge.getContext?.());
     }
 
     bindEvents();
@@ -768,7 +651,7 @@ async function init() {
 
 window.addEventListener("beforeunload", () => {
   detachContextHandler?.();
-  detachSystemThemeHandler?.();
+  themeController?.detach?.();
 });
 
 init();
