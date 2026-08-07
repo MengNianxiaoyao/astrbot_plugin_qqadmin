@@ -142,7 +142,25 @@ class QQAdminPageService:
         else:
             await self.db.replace_group(group_id, sanitized)
         self.group_cache.invalidate(group_id)
-        return await self.get_group_config(group_id)
+
+        # 返回轻量结果：优先用列表缓存摘要，避免保存后又拉一次详情
+        group_info = self.group_cache.get_cached_group(group_id)
+        if group_info is None:
+            group_info = await self.group_cache.get_group(group_id, force=False)
+        if self._should_delete_group(group_info):
+            await self._delete_group_data(group_id)
+            raise ValueError(f"group {group_id} no longer exists and has been deleted")
+
+        follow_default = self.db.is_group_follow_default(group_id)
+        return {
+            "group_id": group_id,
+            "group_info": group_info,
+            "config": {
+                FOLLOW_DEFAULT_KEY: follow_default,
+                **self.db.get_group_snapshot(group_id),
+            },
+            "is_default_group": False,
+        }
 
     async def reset_group_config(self, group_id: str) -> dict[str, Any]:
         if str(group_id).strip() == DEFAULT_GROUP_ID:

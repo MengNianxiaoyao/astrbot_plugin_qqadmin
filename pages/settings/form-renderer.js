@@ -117,8 +117,9 @@ function buildField(path, key, schema, value, options = {}) {
     if (options.singleColumn) {
       grid.classList.add("single-column");
     }
+    const fragment = document.createDocumentFragment();
     Object.entries(schema.items || {}).forEach(([childKey, childSchema]) => {
-      grid.appendChild(
+      fragment.appendChild(
         buildField(
           pathJoin(path, childKey),
           childKey,
@@ -128,6 +129,7 @@ function buildField(path, key, schema, value, options = {}) {
         )
       );
     });
+    grid.appendChild(fragment);
     bodyHost.appendChild(grid);
     return wrapper;
   }
@@ -230,8 +232,9 @@ export function renderSchemaFields(root, schema, values, options = {}) {
     grid.classList.add("single-column");
   }
 
+  const fragment = document.createDocumentFragment();
   Object.entries(schema).forEach(([key, fieldSchema]) => {
-    grid.appendChild(
+    fragment.appendChild(
       buildField(
         key,
         key,
@@ -241,6 +244,7 @@ export function renderSchemaFields(root, schema, values, options = {}) {
       )
     );
   });
+  grid.appendChild(fragment);
 
   root.appendChild(grid);
 }

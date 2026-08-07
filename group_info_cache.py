@@ -31,14 +31,17 @@ class QQGroupInfoCache:
         self.context = context
         self.db = db
         self.ttl_seconds = ttl_seconds
+        self.role_ttl_seconds = 600
 
         self._lock = asyncio.Lock()
         self._bot_role_lock = asyncio.Lock()
         self._last_refresh_at = 0.0
         self._group_list_cache: list[dict[str, Any]] = []
         self._group_detail_cache: dict[str, dict[str, Any]] = {}
+        self._group_detail_ts: dict[str, float] = {}
         self._group_clients: dict[str, Any] = {}
         self._bot_role_cache: dict[str, str] = {}
+        self._bot_role_ts: dict[str, float] = {}
         self._client_bot_ids: dict[int, str] = {}
 
     async def list_groups(self, force: bool = False) -> list[dict[str, Any]]:
@@ -60,26 +63,39 @@ class QQGroupInfoCache:
         if not normalized_group_id:
             raise ValueError("group_id must not be empty")
 
-        if (
-            force
-            or not self._is_fresh()
-            or self._find_group_from_cache(normalized_group_id) is None
-        ):
-            await self._refresh_group_list(force=force)
+        # 仅当群不在缓存的列表里时，才刷新一次全量列表（新增/失效群兜底），
+        # 避免切换群时频繁触发整表重建。
+        if self._find_group_from_cache(normalized_group_id) is None:
+            if force or not self._group_list_cache or not self._is_fresh():
+                await self._refresh_group_list(force=force)
 
+        now = time.time()
         cached_detail = self._group_detail_cache.get(normalized_group_id)
-        if cached_detail and not force and self._is_fresh():
+        if (
+            cached_detail
+            and not force
+            and (now - self._group_detail_ts.get(normalized_group_id, 0))
+            < self.ttl_seconds
+        ):
             return copy.deepcopy(cached_detail)
 
         detail = await self._load_group_detail(normalized_group_id)
         self._group_detail_cache[normalized_group_id] = detail
+        self._group_detail_ts[normalized_group_id] = now
         return copy.deepcopy(detail)
+
+    def get_cached_group(self, group_id: str) -> dict[str, Any] | None:
+        """从列表缓存中取群摘要（不触发任何网络请求）。"""
+        return self._find_group_from_cache(str(group_id).strip())
 
     def invalidate(self, group_id: str | None = None) -> None:
         if group_id:
-            self._group_detail_cache.pop(str(group_id).strip(), None)
+            gid = str(group_id).strip()
+            self._group_detail_cache.pop(gid, None)
+            self._group_detail_ts.pop(gid, None)
             return
         self._group_detail_cache.clear()
+        self._group_detail_ts.clear()
 
     def remove_group(self, group_id: str | None) -> None:
         normalized_group_id = str(group_id or "").strip()
@@ -92,8 +108,10 @@ class QQGroupInfoCache:
             if item.get("group_id") != normalized_group_id
         ]
         self._group_detail_cache.pop(normalized_group_id, None)
+        self._group_detail_ts.pop(normalized_group_id, None)
         self._group_clients.pop(normalized_group_id, None)
         self._bot_role_cache.pop(normalized_group_id, None)
+        self._bot_role_ts.pop(normalized_group_id, None)
 
     def _is_fresh(self) -> bool:
         return (time.time() - self._last_refresh_at) < self.ttl_seconds
@@ -135,7 +153,6 @@ class QQGroupInfoCache:
             self._attach_cached_bot_roles(groups)
             self._group_list_cache = self._sort_groups(groups)
             self._group_clients = group_clients
-            self._group_detail_cache.clear()
             self._last_refresh_at = time.time()
 
     async def _load_group_detail(self, group_id: str) -> dict[str, Any]:
@@ -207,7 +224,12 @@ class QQGroupInfoCache:
                 group_id = str(group.get("group_id", "")).strip()
                 if not group_id:
                     return
-                if not force and group_id in self._bot_role_cache:
+                if (
+                    not force
+                    and group_id in self._bot_role_cache
+                    and (time.time() - self._bot_role_ts.get(group_id, 0))
+                    < self.role_ttl_seconds
+                ):
                     return
 
                 async with semaphore:
@@ -216,6 +238,7 @@ class QQGroupInfoCache:
                         preferred_client=self._group_clients.get(group_id),
                     )
                     self._bot_role_cache[group_id] = role
+                    self._bot_role_ts[group_id] = time.time()
                     if client is not None:
                         self._group_clients[group_id] = client
 

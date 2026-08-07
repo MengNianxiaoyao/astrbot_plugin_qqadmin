@@ -26,6 +26,7 @@ let detachContextHandler = null;
 let detachSystemThemeHandler = null;
 let themePreference = loadThemePreference();
 let groupRoleSyncToken = 0;
+let formDirty = false;
 
 const els = {
   groupForm: document.getElementById("groupForm"),
@@ -261,6 +262,29 @@ function filterAndRenderGroups() {
   });
 }
 
+function markFormDirty() {
+  formDirty = true;
+}
+
+function updateActiveGroupCard() {
+  const activeId = String(currentGroup?.group_id || "");
+  els.groupList.querySelectorAll(".group-card").forEach((card) => {
+    card.classList.toggle("is-active", card.dataset.groupId === activeId);
+  });
+}
+
+function setFieldsDisabled(disabled) {
+  els.groupForm.querySelectorAll("[data-path]").forEach((node) => {
+    if (node.dataset.path === FOLLOW_DEFAULT_KEY) {
+      return;
+    }
+    node.disabled = disabled;
+  });
+  els.groupForm.querySelectorAll(".field, .form-object").forEach((field) => {
+    field.classList.toggle("is-disabled", disabled);
+  });
+}
+
 function renderGroupForm(groupPayload) {
   currentGroup = groupPayload;
 
@@ -277,7 +301,7 @@ function renderGroupForm(groupPayload) {
   );
   bindFollowDefaultToggle();
   updateGroupActionState();
-  filterAndRenderGroups();
+  updateActiveGroupCard();
 }
 
 async function loadBootstrapData() {
@@ -320,6 +344,7 @@ async function loadGroupConfig(groupId, force = false) {
     force: force ? "1" : "0",
   });
   renderGroupForm(data);
+  formDirty = false;
 }
 
 function bindFollowDefaultToggle() {
@@ -334,8 +359,12 @@ function bindFollowDefaultToggle() {
     if (!currentGroup?.config) {
       return;
     }
-    currentGroup.config[FOLLOW_DEFAULT_KEY] = Boolean(followDefaultInput.checked);
-    renderGroupForm(currentGroup);
+    const following = Boolean(followDefaultInput.checked);
+    currentGroup.config[FOLLOW_DEFAULT_KEY] = following;
+    // 轻量切换：仅翻转禁用态，不重建整个表单
+    setFieldsDisabled(following);
+    updateGroupActionState();
+    updateActiveGroupCard();
   });
 }
 
@@ -362,6 +391,7 @@ async function persistGroupConfig(groupId, options = {}) {
   if (rerenderCurrent) {
     renderGroupForm(data);
   }
+  formDirty = false;
   if (refreshList) {
     await refreshGroups();
   }
@@ -375,6 +405,9 @@ async function saveCurrentGroupBeforeSwitch(nextGroupId) {
   const currentGroupId = String(currentGroup?.group_id || "").trim();
   const targetGroupId = String(nextGroupId || "").trim();
   if (!currentGroupId || !targetGroupId || currentGroupId === targetGroupId) {
+    return;
+  }
+  if (!formDirty) {
     return;
   }
   if (!els.groupForm.querySelector("[data-path]")) {
@@ -413,6 +446,7 @@ async function resetGroupConfig() {
   }
   const data = await api.safePost("settings/group/reset", { group_id: target });
   renderGroupForm(data);
+  formDirty = false;
   await refreshGroups();
   showToast(`群 ${target} 已恢复默认群配置`);
 }
@@ -644,9 +678,14 @@ function bindEvents() {
     }
   });
 
+  let groupSearchTimer = null;
   els.groupSearchInput.addEventListener("input", () => {
-    filterAndRenderGroups();
+    clearTimeout(groupSearchTimer);
+    groupSearchTimer = setTimeout(filterAndRenderGroups, 150);
   });
+
+  els.groupForm.addEventListener("input", markFormDirty);
+  els.groupForm.addEventListener("change", markFormDirty);
 
   els.viewTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
