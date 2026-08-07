@@ -29,7 +29,6 @@ from .permission import (
     perm_manager,
     perm_required,
 )
-from .utils import print_logo
 from .web import QQAdminWebController
 
 
@@ -59,9 +58,6 @@ class QQAdminPlugin(Star):
         asyncio.create_task(self.curfew.initialize())
 
         perm_manager.lazy_init(self.cfg, self.db)
-
-        if random.random() < 0.01:
-            print_logo()
 
     @filter.on_platform_loaded()
     async def on_platform_loaded(self):
@@ -123,7 +119,7 @@ class QQAdminPlugin(Star):
     async def set_group_special_title_me(
         self, event: AiocqhttpMessageEvent, new_title: str | int | None = None
     ):
-        await self.normal.set_group_special_title(event, new_title)
+        await self.normal.set_group_special_title_me(event, new_title)
 
     @filter.command("踢了", desc="踢了@群友")
     @perm_required(PermLevel.ADMIN, perm_key="set_group_kick")
@@ -198,13 +194,13 @@ class QQAdminPlugin(Star):
 
     @filter.command("设置禁词", alias={"禁词", "违禁词"})
     @perm_required(PermLevel.ADMIN, perm_key="word_ban")
-    async def handle_builtin_ban_words(self, event: AiocqhttpMessageEvent):
+    async def handle_ban_words(self, event: AiocqhttpMessageEvent):
         """禁词 +词1 -词2, 带+-则增删, 不带则覆写"""
         await self.banpro.handle_ban_words(event)
 
     @filter.command("内置禁词")
     @perm_required(PermLevel.ADMIN, perm_key="word_ban")
-    async def handle_ban_words(
+    async def handle_builtin_ban_words(
         self, event: AiocqhttpMessageEvent, mode: str | bool | None = None
     ):
         """内置禁词 开/关"""
@@ -218,7 +214,7 @@ class QQAdminPlugin(Star):
             await self.banpro.on_ban_words(event)
 
     @filter.command("刷屏禁言")
-    @perm_required(PermLevel.ADMIN, perm_key="spamming")
+    @perm_required(PermLevel.ADMIN, perm_key="handle_builtin_ban_words")
     async def handle_spamming_ban_time(
         self, event: AiocqhttpMessageEvent, time: int | None = None
     ):

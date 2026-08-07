@@ -1,6 +1,7 @@
 import asyncio
 import random
 
+from astrbot.api import logger
 from astrbot.core.message.components import At, Plain, Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
@@ -34,8 +35,11 @@ class NormalHandle:
                     user_id=int(tid),
                     duration=ban_time,
                 )
-            except:  # noqa: E722
-                pass
+            except Exception as e:
+                logger.warning(
+                    f"禁言失败: 群 {event.get_group_id()} 用户 {tid} "
+                    f"{ban_time} 秒 -> {e}"
+                )
         event.stop_event()
 
     async def set_group_ban_me(

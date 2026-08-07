@@ -243,19 +243,31 @@ class CurfewHandle:
 
     async def _initialize_aiocqhttp_adapter(self, inst: AiocqhttpAdapter):
         """初始化单个 AiocqhttpAdapter 的宵禁管理器"""
+        try:
+            client = inst.get_client()
+        except Exception as e:
+            logger.warning(f"{inst.metadata.id} 获取 aiocqhttp client 失败: {e}")
+            return
+
+        if client is None:
+            logger.warning(
+                f"{inst.metadata.id} 暂无可用 client（WebSocket 未就绪），宵禁初始化跳过"
+            )
+            return
+
         bot_id = None
 
-        # client直接获取 bot_id
-        if client := inst.get_client():
-            try:
-                login_data = await client.get_login_info()
-                bot_id = str(login_data.get("user_id"))
-            except Exception:
-                pass
+        # client 直接获取 bot_id
+        try:
+            login_data = await client.get_login_info()
+            bot_id = str(login_data.get("user_id"))
+        except Exception:
+            pass
 
         # client 在 ws 连接成功时获取
         if not bot_id:
-            bot_id_future = asyncio.get_event_loop().create_future()
+            loop = asyncio.get_running_loop()
+            bot_id_future = loop.create_future()
 
             @client.on_websocket_connection
             async def on_ws_connect(event_: Event):
