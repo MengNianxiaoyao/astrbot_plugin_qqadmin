@@ -16,9 +16,7 @@ class FileHandle:
     def __init__(self, config: PluginConfig):
         self.data_dir = config.file_dir
 
-    async def _parse_path(
-        self, event: AiocqhttpMessageEvent, path: str
-    ) -> tuple[str | None, str | None]:
+    async def _parse_path(self, event: AiocqhttpMessageEvent, path: str) -> tuple[str | None, str | None]:
         """
         解析路径，返回 (folder_name, file_name)
         支持：
@@ -29,14 +27,10 @@ class FileHandle:
         - "数字/数字" -> 用缓存解析 (folder序号/文件序号)
         """
         path = path.strip()
-        response = await event.bot.get_group_root_files(
-            group_id=int(event.get_group_id())
-        )
+        response = await event.bot.get_group_root_files(group_id=int(event.get_group_id()))
         _, mapping = self._get_folder_info(response, "")
 
-        def resolve_index(
-            index: str, kind_filter: str | None = None
-        ) -> tuple[str | None, str | None]:
+        def resolve_index(index: str, kind_filter: str | None = None) -> tuple[str | None, str | None]:
             """根据序号解析文件夹名或文件名，可选过滤类型，返回(kind, name)"""
             if not index.isdigit():
                 return None, None
@@ -84,19 +78,11 @@ class FileHandle:
                 return None, None
             return path, None
 
-    async def _get_folder(
-        self, event: AiocqhttpMessageEvent, folder_name: str
-    ) -> dict | None:
+    async def _get_folder(self, event: AiocqhttpMessageEvent, folder_name: str) -> dict | None:
         """从根目录下找到指定文件夹, 返回文件夹数据"""
-        response = await event.bot.get_group_root_files(
-            group_id=int(event.get_group_id())
-        )
+        response = await event.bot.get_group_root_files(group_id=int(event.get_group_id()))
         return next(
-            (
-                folder
-                for folder in response["folders"]
-                if folder_name == folder["folder_name"]
-            ),
+            (folder for folder in response["folders"] if folder_name == folder["folder_name"]),
             None,
         )
 
@@ -127,38 +113,26 @@ class FileHandle:
         else:
             lines.append(f"文件大小: {size / (1024**2):.2f} MB")
 
-        lines.append(
-            f"上传者：{file.get('uploader_name', '未知')}({file.get('uploader', '未知')})"
-        )
+        lines.append(f"上传者：{file.get('uploader_name', '未知')}({file.get('uploader', '未知')})")
         lines.append(f"下载次数：{file.get('download_times', '未知')}")
 
         if upload_time := file.get("upload_time", 0):
-            lines.append(
-                f"上传时间：{datetime.fromtimestamp(upload_time).strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            lines.append(f"上传时间：{datetime.fromtimestamp(upload_time).strftime('%Y-%m-%d %H:%M:%S')}")
         dead_time = file.get("dead_time", 0)
-        lines.append(
-            f"过期时间：{'永久有效' if dead_time == 0 else datetime.fromtimestamp(dead_time).strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        lines.append(f"过期时间：{'永久有效' if dead_time == 0 else datetime.fromtimestamp(dead_time).strftime('%Y-%m-%d %H:%M:%S')}")
         if modify_time := file.get("modify_time", 0):
-            lines.append(
-                f"修改时间：{datetime.fromtimestamp(modify_time).strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            lines.append(f"修改时间：{datetime.fromtimestamp(modify_time).strftime('%Y-%m-%d %H:%M:%S')}")
         logger.debug(f"文件ID：{file.get('file_id', '未知')}")
         return "\n".join(lines)
 
-    async def _get_file_in_folder(
-        self, event: AiocqhttpMessageEvent, folder_name: str, file_name: str
-    ):
+    async def _get_file_in_folder(self, event: AiocqhttpMessageEvent, folder_name: str, file_name: str):
         """返回目标文件夹和文件对象"""
         if not folder_name:
             return None, None
         target_folder = await self._get_folder(event, folder_name=folder_name)
         if not target_folder:
             return None, None
-        response = await event.bot.get_group_files_by_folder(
-            group_id=int(event.get_group_id()), folder_id=target_folder["folder_id"]
-        )
+        response = await event.bot.get_group_files_by_folder(group_id=int(event.get_group_id()), folder_id=target_folder["folder_id"])
         file = next((f for f in response["files"] if f["file_name"] == file_name), None)
         return target_folder, file
 
@@ -244,9 +218,7 @@ class FileHandle:
         if file_name:
             file = None
             if folder_name:
-                target_folder, file = await self._get_file_in_folder(
-                    event, folder_name, file_name
-                )
+                target_folder, file = await self._get_file_in_folder(event, folder_name, file_name)
                 if not target_folder or not file:
                     await event.send(event.plain_result(f"{path} 不存在"))
                     return
@@ -257,17 +229,13 @@ class FileHandle:
                     None,
                 )
             if file:
-                await event.bot.delete_group_file(
-                    group_id=group_id, file_id=file["file_id"]
-                )
+                await event.bot.delete_group_file(group_id=group_id, file_id=file["file_id"])
                 await event.send(event.plain_result(f"已删除群文件：📄{file_name}"))
 
         # 删除文件夹
         elif folder_name and not file_name:
             if target_folder := await self._get_folder(event, folder_name):
-                await event.bot.delete_group_folder(
-                    group_id=group_id, folder_id=target_folder["folder_id"]
-                )
+                await event.bot.delete_group_folder(group_id=group_id, folder_id=target_folder["folder_id"])
                 await event.send(event.plain_result(f"已删除群文件夹：▶{folder_name}"))
             else:
                 await event.send(event.plain_result(f"群文件夹【{folder_name}】不存在"))
@@ -286,9 +254,7 @@ class FileHandle:
         folder_name, file_name = await self._parse_path(event, str(path))
 
         if folder_name and file_name:
-            target_folder, file = await self._get_file_in_folder(
-                event, folder_name, file_name
-            )
+            target_folder, file = await self._get_file_in_folder(event, folder_name, file_name)
             if not file:
                 yield event.plain_result(f"未能找到群文件：📄{file_name}")
                 return
@@ -298,9 +264,7 @@ class FileHandle:
         if folder_name and not file_name:
             target_folder = await self._get_folder(event, folder_name)
             if target_folder:
-                response = await client.get_group_files_by_folder(
-                    group_id=group_id, folder_id=target_folder["folder_id"]
-                )
+                response = await client.get_group_files_by_folder(group_id=group_id, folder_id=target_folder["folder_id"])
                 text, _ = self._get_folder_info(response, f"【{folder_name}】")
                 yield event.plain_result(text)
             else:

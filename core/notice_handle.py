@@ -53,15 +53,10 @@ class NoticeHandle:
         formatted_messages = []
         for notice in notices:
             sender_id = notice["sender_id"]
-            publish_time = datetime.fromtimestamp(notice["publish_time"]).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
+            publish_time = datetime.fromtimestamp(notice["publish_time"]).strftime("%Y-%m-%d %H:%M:%S")
             message_text = notice["message"]["text"].replace("&#10;", "\n\n")
 
-            formatted_message = (
-                f"【{publish_time}-{sender_id}】\n\n"
-                f"{textwrap.indent(message_text, '    ')}"
-            )
+            formatted_message = f"【{publish_time}-{sender_id}】\n\n{textwrap.indent(message_text, '    ')}"
             formatted_messages.append(formatted_message)
 
         notices_str = "\n\n\n".join(formatted_messages)

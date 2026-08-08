@@ -25,15 +25,7 @@ class MemberHandle:
         await event.send(event.plain_result("获取中..."))
         group_id = event.get_group_id()
         members_data = await event.bot.get_group_member_list(group_id=int(group_id))
-        info_list = [
-            (
-                f"{format_time(member['join_time'])}："
-                f"【{member['level']}】"
-                f"{member['user_id']}-"
-                f"{member['nickname']}"
-            )
-            for member in members_data
-        ]
+        info_list = [(f"{format_time(member['join_time'])}：【{member['level']}】{member['user_id']}-{member['nickname']}") for member in members_data]
         info_list.sort(key=lambda x: datetime.strptime(x.split("：")[0], "%Y-%m-%d"))
         info_str = "进群时间：【等级】QQ-昵称\n\n"
         info_str += "\n\n".join(info_list)
@@ -70,9 +62,7 @@ class MemberHandle:
             if last_sent < threshold_ts and level < under_level:
                 clear_ids.append(user_id)
                 last_active_str = format_time(last_sent)
-                info_lines.append(
-                    f"- **{last_active_str}**｜**{level}**级｜`{user_id}` - {nickname}"
-                )
+                info_lines.append(f"- **{last_active_str}**｜**{level}**级｜`{user_id}` - {nickname}")
 
         if not clear_ids:
             await event.send(event.plain_result("无符合条件的群友"))
@@ -93,9 +83,7 @@ class MemberHandle:
         await event.send(event.chain_result([At(qq=cid) for cid in clear_ids]))
 
         @session_waiter(timeout=60)  # type: ignore
-        async def empty_mention_waiter(
-            controller: SessionController, event: AiocqhttpMessageEvent
-        ):
+        async def empty_mention_waiter(controller: SessionController, event: AiocqhttpMessageEvent):
             if group_id != event.get_group_id() or sender_id != event.get_sender_id():
                 return
 

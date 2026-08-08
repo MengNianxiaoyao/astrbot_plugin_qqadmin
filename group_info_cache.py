@@ -71,12 +71,7 @@ class QQGroupInfoCache:
 
         now = time.time()
         cached_detail = self._group_detail_cache.get(normalized_group_id)
-        if (
-            cached_detail
-            and not force
-            and (now - self._group_detail_ts.get(normalized_group_id, 0))
-            < self.ttl_seconds
-        ):
+        if cached_detail and not force and (now - self._group_detail_ts.get(normalized_group_id, 0)) < self.ttl_seconds:
             return copy.deepcopy(cached_detail)
 
         detail = await self._load_group_detail(normalized_group_id)
@@ -102,11 +97,7 @@ class QQGroupInfoCache:
         if not normalized_group_id:
             return
 
-        self._group_list_cache = [
-            item
-            for item in self._group_list_cache
-            if item.get("group_id") != normalized_group_id
-        ]
+        self._group_list_cache = [item for item in self._group_list_cache if item.get("group_id") != normalized_group_id]
         self._group_detail_cache.pop(normalized_group_id, None)
         self._group_detail_ts.pop(normalized_group_id, None)
         self._group_clients.pop(normalized_group_id, None)
@@ -145,9 +136,7 @@ class QQGroupInfoCache:
                     missing_detail_group_ids.add(group_id)
 
             if missing_detail_group_ids:
-                await self._hydrate_missing_groups(
-                    merged_groups, group_clients, missing_detail_group_ids
-                )
+                await self._hydrate_missing_groups(merged_groups, group_clients, missing_detail_group_ids)
 
             groups = list(merged_groups.values())
             self._attach_cached_bot_roles(groups)
@@ -156,12 +145,8 @@ class QQGroupInfoCache:
             self._last_refresh_at = time.time()
 
     async def _load_group_detail(self, group_id: str) -> dict[str, Any]:
-        group_detail = self._find_group_from_cache(
-            group_id
-        ) or self._build_fallback_group(group_id)
-        detail, client = await self._fetch_group_detail(
-            group_id, preferred_client=self._group_clients.get(group_id)
-        )
+        group_detail = self._find_group_from_cache(group_id) or self._build_fallback_group(group_id)
+        detail, client = await self._fetch_group_detail(group_id, preferred_client=self._group_clients.get(group_id))
         if detail:
             group_detail.update(detail)
             if client is not None:
@@ -193,28 +178,20 @@ class QQGroupInfoCache:
     ) -> tuple[dict[str, Any] | None, Any | None]:
         for client in self._build_client_priority_list(preferred_client):
             try:
-                result = await client.call_action(
-                    "get_group_info", group_id=int(group_id)
-                )
+                result = await client.call_action("get_group_info", group_id=int(group_id))
                 info = self._extract_object(result)
                 if info:
                     detail = self._normalize_group_summary(info)
                     detail["source"] = "live"
                     return detail, client
             except Exception as exc:
-                logger.debug(
-                    "Failed to fetch QQ group detail for %s: %s", group_id, exc
-                )
+                logger.debug("Failed to fetch QQ group detail for %s: %s", group_id, exc)
 
         return None, None
 
     async def _hydrate_bot_roles(self, force: bool = False) -> None:
         async with self._bot_role_lock:
-            groups = [
-                group
-                for group in self._group_list_cache
-                if str(group.get("group_id", "")).strip()
-            ]
+            groups = [group for group in self._group_list_cache if str(group.get("group_id", "")).strip()]
             if not groups:
                 return
 
@@ -224,12 +201,7 @@ class QQGroupInfoCache:
                 group_id = str(group.get("group_id", "")).strip()
                 if not group_id:
                     return
-                if (
-                    not force
-                    and group_id in self._bot_role_cache
-                    and (time.time() - self._bot_role_ts.get(group_id, 0))
-                    < self.role_ttl_seconds
-                ):
+                if not force and group_id in self._bot_role_cache and (time.time() - self._bot_role_ts.get(group_id, 0)) < self.role_ttl_seconds:
                     return
 
                 async with semaphore:
@@ -294,9 +266,7 @@ class QQGroupInfoCache:
             self._client_bot_ids[client_key] = bot_id
         return bot_id
 
-    def _build_client_priority_list(
-        self, preferred_client: Any | None = None
-    ) -> list[Any]:
+    def _build_client_priority_list(self, preferred_client: Any | None = None) -> list[Any]:
         tried_client_ids: set[int] = set()
         clients: list[Any] = []
 
@@ -361,8 +331,7 @@ class QQGroupInfoCache:
         group_id = str(raw_group.get("group_id", "")).strip()
         return {
             "group_id": group_id,
-            "group_name": str(raw_group.get("group_name", "")).strip()
-            or f"群 {group_id}",
+            "group_name": str(raw_group.get("group_name", "")).strip() or f"群 {group_id}",
             "avatar": cls._build_avatar(group_id),
             "member_count": cls._safe_int(raw_group.get("member_count"), 0),
             "max_member_count": cls._safe_int(raw_group.get("max_member_count"), 0),

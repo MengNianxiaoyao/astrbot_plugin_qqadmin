@@ -71,9 +71,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("禁我", desc="禁我 <秒数>")
     @perm_required(PermLevel.ADMIN, perm_key="set_group_ban_me")
-    async def set_group_ban_me(
-        self, event: AiocqhttpMessageEvent, ban_time: int | None = None
-    ):
+    async def set_group_ban_me(self, event: AiocqhttpMessageEvent, ban_time: int | None = None):
         await self.normal.set_group_ban_me(event, ban_time)
 
     @filter.command("解禁", desc="解禁 @群友")
@@ -93,31 +91,23 @@ class QQAdminPlugin(Star):
 
     @filter.command("改名", desc="改名 xxx @user")
     @perm_required(PermLevel.ADMIN, perm_key="set_group_card")
-    async def set_group_card(
-        self, event: AiocqhttpMessageEvent, target_card: str | int | None = None
-    ):
+    async def set_group_card(self, event: AiocqhttpMessageEvent, target_card: str | int | None = None):
         """改名 xxx @user"""
         await self.normal.set_group_card(event, target_card)
 
     @filter.command("改我", desc="改我 xxx")
     @perm_required(PermLevel.ADMIN, perm_key="set_group_card_me")
-    async def set_group_card_me(
-        self, event: AiocqhttpMessageEvent, target_card: str | int | None = None
-    ):
+    async def set_group_card_me(self, event: AiocqhttpMessageEvent, target_card: str | int | None = None):
         await self.normal.set_group_card_me(event, target_card)
 
     @filter.command("头衔", desc="改头衔 xxx @群友")
     @perm_required(PermLevel.OWNER, perm_key="set_group_special_title")
-    async def set_group_special_title(
-        self, event: AiocqhttpMessageEvent, new_title: str | int | None = None
-    ):
+    async def set_group_special_title(self, event: AiocqhttpMessageEvent, new_title: str | int | None = None):
         await self.normal.set_group_special_title(event, new_title)
 
     @filter.command("申请头衔", desc="申请头衔 xxx", alias={"我要头衔"})
     @perm_required(PermLevel.OWNER, perm_key="set_group_special_title_me")
-    async def set_group_special_title_me(
-        self, event: AiocqhttpMessageEvent, new_title: str | int | None = None
-    ):
+    async def set_group_special_title_me(self, event: AiocqhttpMessageEvent, new_title: str | int | None = None):
         await self.normal.set_group_special_title_me(event, new_title)
 
     @filter.command("踢了", desc="踢了@群友")
@@ -162,9 +152,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("设置群名", desc="设置群名 xxx")
     @perm_required(PermLevel.ADMIN, perm_key="set_group_name")
-    async def set_group_name(
-        self, event: AiocqhttpMessageEvent, group_name: str | int | None = None
-    ):
+    async def set_group_name(self, event: AiocqhttpMessageEvent, group_name: str | int | None = None):
         await self.normal.set_group_name(event, group_name)
 
     @filter.command("撤回")
@@ -185,9 +173,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("禁词禁言")
     @perm_required(PermLevel.ADMIN, perm_key="word_ban")
-    async def handle_word_ban_time(
-        self, event: AiocqhttpMessageEvent, time: int | None = None
-    ):
+    async def handle_word_ban_time(self, event: AiocqhttpMessageEvent, time: int | None = None):
         """禁词禁言 <秒数>, 设为 0 表示关闭禁词检测"""
         await self.banpro.handle_word_ban_time(event, time)
 
@@ -199,9 +185,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("内置禁词")
     @perm_required(PermLevel.ADMIN, perm_key="word_ban")
-    async def handle_builtin_ban_words(
-        self, event: AiocqhttpMessageEvent, mode: str | bool | None = None
-    ):
+    async def handle_builtin_ban_words(self, event: AiocqhttpMessageEvent, mode: str | bool | None = None):
         """内置禁词 开/关"""
         await self.banpro.handle_builtin_ban_words(event, mode)
 
@@ -214,9 +198,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("刷屏禁言")
     @perm_required(PermLevel.ADMIN, perm_key="handle_builtin_ban_words")
-    async def handle_spamming_ban_time(
-        self, event: AiocqhttpMessageEvent, time: int | None = None
-    ):
+    async def handle_spamming_ban_time(self, event: AiocqhttpMessageEvent, time: int | None = None):
         """刷屏禁言 <秒数>, 设为 0 表示关闭禁词检测"""
         await self.banpro.handle_spamming_ban_time(event, time)
 
@@ -228,9 +210,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("投票禁言", desc="投票禁言 <秒数> @群友")
     @perm_required(PermLevel.ADMIN, perm_key="vote")
-    async def start_vote_mute(
-        self, event: AiocqhttpMessageEvent, ban_time: int | None = None
-    ):
+    async def start_vote_mute(self, event: AiocqhttpMessageEvent, ban_time: int | None = None):
         await self.banpro.start_vote_mute(event, ban_time)
 
     @filter.command("赞同禁言", desc="同意执行当前禁言投票")
@@ -262,9 +242,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("进群审核")
     @perm_required(PermLevel.ADMIN, perm_key="join")
-    async def handle_join_review(
-        self, event: AiocqhttpMessageEvent, mode: str | bool | None = None
-    ):
+    async def handle_join_review(self, event: AiocqhttpMessageEvent, mode: str | bool | None = None):
         "进群审核 开/关，所有进群审核功能的总开关"
         await self.join.handle_join_review(event, mode)
 
@@ -282,25 +260,19 @@ class QQAdminPlugin(Star):
 
     @filter.command("未命中驳回", desc="未命中白词自动驳回 开/关")
     @perm_required(PermLevel.ADMIN, perm_key="join")
-    async def handle_no_match_reject(
-        self, event: AiocqhttpMessageEvent, mode: str | bool | None = None
-    ):
+    async def handle_no_match_reject(self, event: AiocqhttpMessageEvent, mode: str | bool | None = None):
         "设置/查看是否拒绝无关键词的进群申请（无参数表示查看）"
         await self.join.handle_no_match_reject(event, mode)
 
     @filter.command("进群等级")
     @perm_required(PermLevel.ADMIN, perm_key="join")
-    async def handle_join_min_level(
-        self, event: AiocqhttpMessageEvent, level: int | None = None
-    ):
+    async def handle_join_min_level(self, event: AiocqhttpMessageEvent, level: int | None = None):
         "设置/查看本群进群等级门槛，（0表示不限制，无参数表示查看）"
         await self.join.handle_join_min_level(event, level)
 
     @filter.command("进群次数")
     @perm_required(PermLevel.ADMIN, perm_key="join")
-    async def handle_join_max_time(
-        self, event: AiocqhttpMessageEvent, time: int | None = None
-    ):
+    async def handle_join_max_time(self, event: AiocqhttpMessageEvent, time: int | None = None):
         "设置/查看未命中进群关键词多少次后拉黑（0表示不限制，无参数表示查看）"
         await self.join.handle_join_max_time(event, time)
 
@@ -328,9 +300,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("进群禁言")
     @perm_required(PermLevel.ADMIN, perm_key="welcome")
-    async def handle_join_ban(
-        self, event: AiocqhttpMessageEvent, time: int | None = None
-    ):
+    async def handle_join_ban(self, event: AiocqhttpMessageEvent, time: int | None = None):
         "进群禁言 <秒数>，设为 0 表示本群不启用该功能"
         await self.join.handle_join_ban(event, time)
 
@@ -341,17 +311,13 @@ class QQAdminPlugin(Star):
 
     @filter.command("退群通知")
     @perm_required(PermLevel.MEMBER, perm_key="leave")
-    async def handle_leave_notify(
-        self, event: AiocqhttpMessageEvent, mode: str | bool | None = None
-    ):
+    async def handle_leave_notify(self, event: AiocqhttpMessageEvent, mode: str | bool | None = None):
         """退群通知 开/关"""
         await self.join.handle_leave_notify(event, mode)
 
     @filter.command("退群拉黑")
     @perm_required(PermLevel.ADMIN, perm_key="leave")
-    async def handle_leave_block(
-        self, event: AiocqhttpMessageEvent, mode: str | bool | None = None
-    ):
+    async def handle_leave_block(self, event: AiocqhttpMessageEvent, mode: str | bool | None = None):
         "退群拉黑 开/关, 拉黑后下次进群直接自动拒绝"
         await self.join.handle_leave_block(event, mode)
 
@@ -416,25 +382,19 @@ class QQAdminPlugin(Star):
             yield r
 
     @filter.command("取名")
-    @perm_required(
-        PermLevel.MEMBER, perm_key="ai_set_card", check_at=False
-    )  # 仅要求Bot为成员，实际权限不足时忽略接口报错
+    @perm_required(PermLevel.MEMBER, perm_key="ai_set_card", check_at=False)  # 仅要求Bot为成员，实际权限不足时忽略接口报错
     async def ai_set_card(self, event: AiocqhttpMessageEvent):
         """取名@群友 <消息轮数>"""
         await self.llm.ai_set_card(event)
 
     @filter.command("取头衔")
-    @perm_required(
-        PermLevel.MEMBER, perm_key="ai_set_title", check_at=False
-    )  # 仅要求Bot为成员，实际权限不足时忽略接口报错
+    @perm_required(PermLevel.MEMBER, perm_key="ai_set_title", check_at=False)  # 仅要求Bot为成员，实际权限不足时忽略接口报错
     async def ai_set_title(self, event: AiocqhttpMessageEvent):
         """取名@群友 <消息轮数>"""
         await self.llm.ai_set_title(event)
 
     @filter.llm_tool()  # type: ignore
-    async def llm_set_group_ban(
-        self, event: AiocqhttpMessageEvent, user_id: str, duration: int
-    ):
+    async def llm_set_group_ban(self, event: AiocqhttpMessageEvent, user_id: str, duration: int):
         """
         在群聊中禁言某用户。被禁言的用户在禁言期间将无法发送消息。
         Args:
@@ -447,9 +407,7 @@ class QQAdminPlugin(Star):
                 user_id=int(user_id),
                 duration=duration,
             )
-            logger.info(
-                f"用户：{user_id}在群聊中被：{event.get_sender_name()}执行禁言{duration}秒"
-            )
+            logger.info(f"用户：{user_id}在群聊中被：{event.get_sender_name()}执行禁言{duration}秒")
             event.stop_event()
             yield
         except Exception as e:
@@ -483,9 +441,7 @@ class QQAdminPlugin(Star):
 
     @filter.command("群管重置")
     @perm_required(PermLevel.MEMBER, perm_key="reset_config", check_at=False)
-    async def reset_config(
-        self, event: AiocqhttpMessageEvent, group_id: str | int | None = None
-    ):
+    async def reset_config(self, event: AiocqhttpMessageEvent, group_id: str | int | None = None):
         """群管重置 <群号 | all>"""
         gid = group_id or event.get_group_id()
         if gid == "all" and event.is_admin():

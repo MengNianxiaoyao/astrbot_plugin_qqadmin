@@ -37,9 +37,7 @@ class JoinHandle:
 
     # -----------修改配置-----------------
 
-    async def handle_join_review(
-        self, event: AiocqhttpMessageEvent, mode_str: str | bool | None
-    ):
+    async def handle_join_review(self, event: AiocqhttpMessageEvent, mode_str: str | bool | None):
         gid = event.get_group_id()
         mode = parse_bool(mode_str)
         if isinstance(mode, bool):
@@ -71,9 +69,7 @@ class JoinHandle:
             words = await self.db.get(gid, "join_reject_words", [])
             await event.send(event.plain_result(f"本群进群黑词：{words}"))
 
-    async def handle_no_match_reject(
-        self, event: AiocqhttpMessageEvent, mode_str: str | bool | None
-    ):
+    async def handle_no_match_reject(self, event: AiocqhttpMessageEvent, mode_str: str | bool | None):
         gid = event.get_group_id()
         mode = parse_bool(mode_str)
         if isinstance(mode, bool):
@@ -83,33 +79,21 @@ class JoinHandle:
             status = await self.db.get(gid, "join_no_match_reject")
             await event.send(event.plain_result(f"本群未命中白词驳回：{status}"))
 
-    async def handle_join_min_level(
-        self, event: AiocqhttpMessageEvent, level: int | None
-    ):
+    async def handle_join_min_level(self, event: AiocqhttpMessageEvent, level: int | None):
         gid = event.get_group_id()
         if isinstance(level, int):
             await self.db.set(gid, "join_min_level", level)
-            msg = (
-                f"本群进群等级门槛已设为：{level} 级"
-                if level > 0
-                else "已解除本群的进群等级限制"
-            )
+            msg = f"本群进群等级门槛已设为：{level} 级" if level > 0 else "已解除本群的进群等级限制"
             await event.send(event.plain_result(msg))
         else:
             level = await self.db.get(gid, "join_min_level")
             await event.send(event.plain_result(f"本群进群等级门槛: {level} 级"))
 
-    async def handle_join_max_time(
-        self, event: AiocqhttpMessageEvent, time: int | None
-    ):
+    async def handle_join_max_time(self, event: AiocqhttpMessageEvent, time: int | None):
         gid = event.get_group_id()
         if isinstance(time, int):
             await self.db.set(gid, "join_max_time", time)
-            msg = (
-                f"本群进群次数已限制为：{time} 次"
-                if time > 0
-                else "已解除本群的进群次数限制"
-            )
+            msg = f"本群进群次数已限制为：{time} 次" if time > 0 else "已解除本群的进群次数限制"
             await event.send(event.plain_result(msg))
         else:
             time = await self.db.get(gid, "join_max_time")
@@ -204,9 +188,7 @@ class JoinHandle:
             await event.send(event.plain_result(f"本群进群欢迎语已设为：\n{raw}"))
         else:
             text = await self.db.get(gid, "join_welcome", "")
-            await event.send(
-                event.plain_result(f"本群进群欢迎语：\n{text or '（未设置）'}")
-            )
+            await event.send(event.plain_result(f"本群进群欢迎语：\n{text or '（未设置）'}"))
 
     async def handle_leave_notify(self, event: AiocqhttpMessageEvent, mode_str):
         gid = event.get_group_id()
@@ -315,11 +297,7 @@ class JoinHandle:
         uid: str = str(raw.get("user_id", ""))
 
         # 进群申请事件
-        if (
-            raw.get("post_type") == "request"
-            and raw.get("request_type") == "group"
-            and raw.get("sub_type") == "add"
-        ):
+        if raw.get("post_type") == "request" and raw.get("request_type") == "group" and raw.get("sub_type") == "add":
             # 进群审核总开关
             if not await self.db.get(gid, "join_switch"):
                 return
@@ -373,11 +351,7 @@ class JoinHandle:
                 await event.send(event.plain_result(notice))
 
         # 主动退群事件
-        elif (
-            raw.get("post_type") == "notice"
-            and raw.get("notice_type") == "group_decrease"
-            and raw.get("sub_type") == "leave"
-        ):
+        elif raw.get("post_type") == "notice" and raw.get("notice_type") == "group_decrease" and raw.get("sub_type") == "leave":
             should_block = await self.db.get(gid, "leave_block", False)
             should_notify = await self.db.get(gid, "leave_notify", False)
             if should_block:
@@ -417,9 +391,7 @@ class JoinHandle:
                 except Exception:
                     pass
 
-    async def set_approve(
-        self, event: AiocqhttpMessageEvent, extra: str = "", approve: bool = True
-    ) -> str | None:
+    async def set_approve(self, event: AiocqhttpMessageEvent, extra: str = "", approve: bool = True) -> str | None:
         """处理进群申请"""
         text = get_reply_message_str(event)
         if not text:
@@ -429,15 +401,11 @@ class JoinHandle:
             nickname = lines[2].split("：")[1]  # 第3行冒号后文本为nickname
             flag = lines[4].split("：")[1]  # 第5行冒号后文本为flag
             try:
-                await event.bot.set_group_add_request(
-                    flag=flag, sub_type="add", approve=approve, reason=extra
-                )
+                await event.bot.set_group_add_request(flag=flag, sub_type="add", approve=approve, reason=extra)
                 if approve:
                     reply = f"已同意{nickname}进群"
                 else:
-                    reply = f"已拒绝{nickname}进群" + (
-                        f"\n理由：{extra}" if extra else ""
-                    )
+                    reply = f"已拒绝{nickname}进群" + (f"\n理由：{extra}" if extra else "")
                 return reply
             except Exception as e:
                 logger.error(f"处理进群申请失败: {e}")

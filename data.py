@@ -171,11 +171,7 @@ class QQAdminDB:
     def _strip_meta_fields(self, data: dict | None) -> dict | None:
         if data is None:
             return None
-        return {
-            key: copy.deepcopy(value)
-            for key, value in data.items()
-            if key != self.FOLLOW_DEFAULT_MARKER
-        }
+        return {key: copy.deepcopy(value) for key, value in data.items() if key != self.FOLLOW_DEFAULT_MARKER}
 
     def _is_follow_default_data(self, data: dict | None) -> bool:
         if data is None:
@@ -209,9 +205,7 @@ class QQAdminDB:
     async def ensure_group(self, gid: str):
         """确保存在群配置，若没有则按 default_cfg 初始化"""
         if gid not in self._cache or self._is_follow_default_data(self._cache.get(gid)):
-            self._cache[gid] = self._build_explicit_group_record(
-                self.get_group_snapshot(gid)
-            )
+            self._cache[gid] = self._build_explicit_group_record(self.get_group_snapshot(gid))
             await self._save_to_db(gid, self._cache[gid])
 
     def list_group_ids(self) -> list[str]:

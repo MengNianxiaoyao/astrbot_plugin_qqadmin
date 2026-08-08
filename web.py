@@ -103,9 +103,7 @@ class QQAdminWebController:
         QQAdminWebController._check_quart_available()
         return cast(Any, quart_request_obj)
 
-    def _wrap_handler(
-        self, handler: Callable[[], Awaitable]
-    ) -> Callable[[], Awaitable]:
+    def _wrap_handler(self, handler: Callable[[], Awaitable]) -> Callable[[], Awaitable]:
         async def wrapped():
             self._check_quart_available()
             try:
@@ -123,14 +121,10 @@ class QQAdminWebController:
         return self._jsonify({"ok": True, "message": "pong"})
 
     async def page_bootstrap(self):
-        return self._jsonify(
-            {"ok": True, "data": await self.service.get_bootstrap_payload()}
-        )
+        return self._jsonify({"ok": True, "data": await self.service.get_bootstrap_payload()})
 
     async def page_refresh_groups(self):
-        return self._jsonify(
-            {"ok": True, "data": await self.service.list_groups(force=True)}
-        )
+        return self._jsonify({"ok": True, "data": await self.service.list_groups(force=True)})
 
     async def page_refresh_group_roles(self):
         payload = await self._request().get_json(force=True, silent=True) or {}
@@ -140,9 +134,7 @@ class QQAdminWebController:
             "yes",
             "on",
         }
-        return self._jsonify(
-            {"ok": True, "data": await self.service.list_groups_with_bot_roles(force)}
-        )
+        return self._jsonify({"ok": True, "data": await self.service.list_groups_with_bot_roles(force)})
 
     async def page_get_group(self):
         request = self._request()
@@ -165,17 +157,13 @@ class QQAdminWebController:
         group_id = payload.get("group_id")
         config = payload.get("config")
         result = await self.service.update_group_config(group_id, config)
-        return self._jsonify(
-            {"ok": True, "message": "Group config saved", "data": result}
-        )
+        return self._jsonify({"ok": True, "message": "Group config saved", "data": result})
 
     async def page_reset_group(self):
         payload = await self._request().get_json(force=True, silent=True) or {}
         group_id = payload.get("group_id")
         result = await self.service.reset_group_config(group_id)
-        return self._jsonify(
-            {"ok": True, "message": "Group config reset", "data": result}
-        )
+        return self._jsonify({"ok": True, "message": "Group config reset", "data": result})
 
     async def page_get_global_lists(self):
         data = await self.service.get_global_lists()
@@ -186,6 +174,4 @@ class QQAdminWebController:
         list_type = payload.get("type", "")
         items = payload.get("items", [])
         result = await self.service.update_global_list(list_type, items)
-        return self._jsonify(
-            {"ok": True, "message": f"全局{'白名单' if list_type == 'allow' else '黑名单'}已更新", "data": result}
-        )
+        return self._jsonify({"ok": True, "message": f"全局{'白名单' if list_type == 'allow' else '黑名单'}已更新", "data": result})

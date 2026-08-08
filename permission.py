@@ -70,27 +70,19 @@ class PermissionManager:
             self.db = db
         self._initialized = True
 
-    async def get_perm_level(
-        self, event: AiocqhttpMessageEvent, user_id: str | int
-    ) -> PermLevel:
+    async def get_perm_level(self, event: AiocqhttpMessageEvent, user_id: str | int) -> PermLevel:
         group_id = event.get_group_id()
         if int(group_id) == 0 or int(user_id) == 0:
             return PermLevel.UNKNOWN
         if self.cfg and str(user_id) in self.cfg.admins_id:
             return PermLevel.SUPERUSER
         try:
-            info = await event.bot.get_group_member_info(
-                group_id=int(group_id), user_id=int(user_id), no_cache=True
-            )
+            info = await event.bot.get_group_member_info(group_id=int(group_id), user_id=int(user_id), no_cache=True)
         except Exception:
             return PermLevel.UNKNOWN
         role = info.get("role", "unknown")
         level = int(info.get("level", 0))
-        group_config = (
-            self.db.get_group_snapshot(group_id)
-            if self.db is not None
-            else {"level_threshold": self.cfg.level_threshold if self.cfg else 50}
-        )
+        group_config = self.db.get_group_snapshot(group_id) if self.db is not None else {"level_threshold": self.cfg.level_threshold if self.cfg else 50}
         level_threshold = int(group_config.get("level_threshold", 50))
         match role:
             case "owner":
@@ -112,11 +104,7 @@ class PermissionManager:
         user_level = await self.get_perm_level(event, user_id=event.get_sender_id())
 
         # 未指定权限，则默认至少需要管理员权限
-        group_config = (
-            self.db.get_group_snapshot(event.get_group_id())
-            if self.db is not None
-            else {"perms": self.cfg.perms if self.cfg else {}}
-        )
+        group_config = self.db.get_group_snapshot(event.get_group_id()) if self.db is not None else {"perms": self.cfg.perms if self.cfg else {}}
         perms = group_config.get("perms", {})
         required_level = PermLevel.from_str(str(perms.get(perm_key, "管理员")))
 
@@ -174,24 +162,18 @@ def perm_required(
                     async for item in func(plugin_instance, event, *args, **kwargs):
                         yield item
                 else:
-                    await cast(
-                        Awaitable[Any], func(plugin_instance, event, *args, **kwargs)
-                    )
+                    await cast(Awaitable[Any], func(plugin_instance, event, *args, **kwargs))
                 return
 
             # 权限管理未初始化
             if not perm_manager._initialized:
-                logger.error(
-                    f"PermissionManager 未初始化（尝试访问权限项：{perm_key}）"
-                )
+                logger.error(f"PermissionManager 未初始化（尝试访问权限项：{perm_key}）")
                 yield event.plain_result("内部错误：权限系统未正确加载")
                 event.stop_event()
                 return
 
             # 判断权限
-            result = await perm_manager.perm_block(
-                event, bot_perm=bot_perm, perm_key=actual_perm_key, check_at=check_at
-            )
+            result = await perm_manager.perm_block(event, bot_perm=bot_perm, perm_key=actual_perm_key, check_at=check_at)
             if result:
                 yield event.plain_result(result)
                 event.stop_event()
@@ -202,9 +184,7 @@ def perm_required(
                 async for item in func(plugin_instance, event, *args, **kwargs):
                     yield item
             else:
-                await cast(
-                    Awaitable[Any], func(plugin_instance, event, *args, **kwargs)
-                )
+                await cast(Awaitable[Any], func(plugin_instance, event, *args, **kwargs))
 
         return wrapper
 

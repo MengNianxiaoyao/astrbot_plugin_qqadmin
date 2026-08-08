@@ -105,9 +105,7 @@ class GroupCurfew:
                 group_id=int(self.group_id),
                 message=f"【{self._end_time_str}】本群宵禁结束！",
             )
-            await self.bot.set_group_whole_ban(
-                group_id=int(self.group_id), enable=False
-            )
+            await self.bot.set_group_whole_ban(group_id=int(self.group_id), enable=False)
             logger.info(f"群 {self.group_id} 已解除全体禁言")
         except Exception as e:
             logger.error(f"群 {self.group_id} 宵禁解除失败: {e}", exc_info=True)
@@ -155,9 +153,7 @@ class GroupCurfew:
 class BotCurfewManager:
     """单 Bot 宵禁调度，统一管理多群"""
 
-    def __init__(
-        self, bot: CQHttp, bot_id: str, store: CurfewStore, scheduler: AsyncIOScheduler
-    ):
+    def __init__(self, bot: CQHttp, bot_id: str, store: CurfewStore, scheduler: AsyncIOScheduler):
         self.bot = bot
         self.bot_id = bot_id
         self.store = store
@@ -184,12 +180,7 @@ class BotCurfewManager:
 
     def _save(self):
         self.bot_data.clear()
-        self.bot_data.update(
-            {
-                gid: {"start_time": cw._start_time_str, "end_time": cw._end_time_str}
-                for gid, cw in self.tasks.items()
-            }
-        )
+        self.bot_data.update({gid: {"start_time": cw._start_time_str, "end_time": cw._end_time_str} for gid, cw in self.tasks.items()})
         self.store.save()
 
     async def remove_group_on_error(self, group_id: str):
@@ -206,9 +197,7 @@ class BotCurfewManager:
         """创建群聊的宵禁任务"""
         if group_id in self.tasks:
             self.tasks[group_id].stop_curfew_task()
-        cw = GroupCurfew(
-            self.bot, group_id, start_time, end_time, self.scheduler, manager=self
-        )
+        cw = GroupCurfew(self.bot, group_id, start_time, end_time, self.scheduler, manager=self)
 
         await cw.start_curfew_task()
         self.tasks[group_id] = cw
@@ -231,9 +220,7 @@ class CurfewHandle:
     def __init__(self, context: Context, config: PluginConfig):
         self.context = context
         tz = self.context.get_config().get("timezone")
-        self.timezone = (
-            zoneinfo.ZoneInfo(tz) if tz else zoneinfo.ZoneInfo("Asia/Shanghai")
-        )
+        self.timezone = zoneinfo.ZoneInfo(tz) if tz else zoneinfo.ZoneInfo("Asia/Shanghai")
         self.scheduler = AsyncIOScheduler(timezone=self.timezone)
         self.scheduler.start()
         self.store = CurfewStore(config.curfew_file)
@@ -249,9 +236,7 @@ class CurfewHandle:
             return
 
         if client is None:
-            logger.warning(
-                f"{inst.metadata.id} 暂无可用 client（WebSocket 未就绪），宵禁初始化跳过"
-            )
+            logger.warning(f"{inst.metadata.id} 暂无可用 client（WebSocket 未就绪），宵禁初始化跳过")
             return
 
         bot_id = None
@@ -290,11 +275,7 @@ class CurfewHandle:
             logger.error(f"{inst.metadata.id} 宵禁初始化失败: {e}")
 
     async def initialize(self):
-        tasks = [
-            self._initialize_aiocqhttp_adapter(inst)
-            for inst in self.context.platform_manager.platform_insts
-            if isinstance(inst, AiocqhttpAdapter)
-        ]
+        tasks = [self._initialize_aiocqhttp_adapter(inst) for inst in self.context.platform_manager.platform_insts if isinstance(inst, AiocqhttpAdapter)]
         if tasks:
             await asyncio.gather(*tasks)
 

@@ -30,12 +30,7 @@ async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
     # 在群里就先试群资料，任何异常或空结果都跳过
     if group_id.isdigit():
         try:
-            info = (
-                await client.get_group_member_info(
-                    group_id=int(group_id), user_id=user_id
-                )
-                or {}
-            )
+            info = await client.get_group_member_info(group_id=int(group_id), user_id=user_id) or {}
         except Exception:
             pass
 
@@ -52,11 +47,7 @@ async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
 
 def get_ats(event: AiocqhttpMessageEvent) -> list[str]:
     """获取被at者们的id列表"""
-    return [
-        str(seg.qq)
-        for seg in event.get_messages()
-        if (isinstance(seg, At) and str(seg.qq) != event.get_self_id())
-    ]
+    return [str(seg.qq) for seg in event.get_messages() if (isinstance(seg, At) and str(seg.qq) != event.get_self_id())]
 
 
 def get_replyer_id(event: AiocqhttpMessageEvent) -> str | None:
@@ -71,11 +62,7 @@ def get_reply_message_str(event: AiocqhttpMessageEvent) -> str | None:
     获取被引用的消息解析后的纯文本消息字符串。
     """
     return next(
-        (
-            seg.message_str
-            for seg in event.message_obj.message
-            if isinstance(seg, Reply)
-        ),
+        (seg.message_str for seg in event.message_obj.message if isinstance(seg, Reply)),
         "",
     )
 

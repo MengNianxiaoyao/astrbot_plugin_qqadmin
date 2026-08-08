@@ -19,26 +19,20 @@ class LLMHandle:
         self.cfg = config
         self.db = db
 
-    def _build_user_context(
-        self, round_messages: list[dict[str, Any]], target_id: str
-    ) -> list[str]:
+    def _build_user_context(self, round_messages: list[dict[str, Any]], target_id: str) -> list[str]:
         """把指定用户在所有回合里的纯文本消息提取出来"""
         lines: list[str] = []
 
         for msg in round_messages:
             if msg["sender"]["user_id"] != int(target_id):
                 continue
-            text_segments = [
-                seg["data"]["text"] for seg in msg["message"] if seg["type"] == "text"
-            ]
+            text_segments = [seg["data"]["text"] for seg in msg["message"] if seg["type"] == "text"]
             text = "".join(text_segments).strip()
             if text:
                 lines.append(text)
         return lines
 
-    async def get_msg_contexts(
-        self, event: AiocqhttpMessageEvent, target_id: str, query_rounds: int
-    ) -> str:
+    async def get_msg_contexts(self, event: AiocqhttpMessageEvent, target_id: str, query_rounds: int) -> str:
         """持续获取群聊历史消息直到达到要求，返回拼接后的聊天记录文本"""
         group_id = event.get_group_id()
         message_seq = 0
@@ -51,9 +45,7 @@ class LLMHandle:
                 "count": 200,
                 "reverseOrder": True,
             }
-            result: dict = await event.bot.api.call_action(
-                "get_group_msg_history", **payloads
-            )
+            result: dict = await event.bot.api.call_action("get_group_msg_history", **payloads)
             round_messages = result["messages"]
             message_seq = round_messages[0]["message_id"]
 
@@ -61,9 +53,7 @@ class LLMHandle:
 
         return "\n".join(all_lines)
 
-    async def get_llm_respond(
-        self, system_prompt: str, chat_history: str
-    ) -> str | None:
+    async def get_llm_respond(self, system_prompt: str, chat_history: str) -> str | None:
         """调用llm回复"""
         get_using = self.context.get_using_provider()
         if not get_using:
@@ -87,9 +77,7 @@ class LLMHandle:
             "请只返回一个昵称，并用精辟的一句话说明取这个昵称的理由，昵称要用 Markdown 加粗，理由要用英文单引号引出。例如：“新昵称：**白嫖怪** \n理由：'太喜欢白嫖别人的成果'”\n"
             "不要附带任何多余的文字、解释或标点。"
         )
-        llm_respond = await self.get_llm_respond(
-            system_prompt=system_prompt, chat_history=chat_history
-        )
+        llm_respond = await self.get_llm_respond(system_prompt=system_prompt, chat_history=chat_history)
         if not llm_respond:
             return None, "LLM响应为空"
 
@@ -108,9 +96,7 @@ class LLMHandle:
         target_id = at_ids[0] if at_ids else event.get_sender_id()
         end_arg = event.message_str.split()[-1]
         group_config = self.db.get_group_snapshot(event.get_group_id())
-        default_rounds = int(
-            group_config.get("llm_get_msg_count", self.cfg.llm_get_msg_count)
-        )
+        default_rounds = int(group_config.get("llm_get_msg_count", self.cfg.llm_get_msg_count))
         query_rounds = int(end_arg) if end_arg.isdigit() else default_rounds
         raw_card = await get_nickname(event, target_id)
         return target_id, raw_card, query_rounds
@@ -149,9 +135,7 @@ class LLMHandle:
         await self._ai_set_name(
             event,
             "昵称",
-            lambda gid, uid, name: event.bot.set_group_card(
-                group_id=gid, user_id=uid, card=name
-            ),
+            lambda gid, uid, name: event.bot.set_group_card(group_id=gid, user_id=uid, card=name),
         )
 
     async def ai_set_title(self, event: AiocqhttpMessageEvent):
@@ -159,7 +143,5 @@ class LLMHandle:
         await self._ai_set_name(
             event,
             "头衔",
-            lambda gid, uid, name: event.bot.set_group_special_title(
-                group_id=gid, user_id=uid, special_title=name
-            ),
+            lambda gid, uid, name: event.bot.set_group_special_title(group_id=gid, user_id=uid, special_title=name),
         )
