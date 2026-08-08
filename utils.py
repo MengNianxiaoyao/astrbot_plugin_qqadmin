@@ -1,9 +1,8 @@
-import os
 from datetime import datetime
 from pathlib import Path
 
+import anyio
 from aiohttp import ClientSession
-
 from astrbot import logger
 from astrbot.core.message.components import At, BaseMessageComponent, Image, Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
@@ -19,6 +18,7 @@ BAN_ME_QUOTES: list[str] = [
     "好好好，禁了",
     "主人你没事吧？",
 ]
+
 
 async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
     """获取指定群友的群昵称或 Q 名，群接口失败/空结果自动降级到陌生人资料"""
@@ -93,10 +93,10 @@ async def download_file(url: str, save_path: Path) -> Path | None:
             response = await client.get(url)
             file = await response.read()
 
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            await anyio.Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
-            with open(save_path, "wb") as img_file:
-                img_file.write(file)
+            async with await anyio.open_file(save_path, "wb") as img_file:
+                await img_file.write(file)
 
             logger.info(f"文件已保存: {save_path}")
             return save_path

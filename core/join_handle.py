@@ -1,5 +1,4 @@
 from aiocqhttp import CQHttp
-
 from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,

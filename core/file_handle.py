@@ -1,7 +1,7 @@
-import os
 import re
 from datetime import datetime
 
+import anyio
 from astrbot.api import logger
 from astrbot.core.message.components import File, Image, Reply, Video
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
@@ -172,7 +172,7 @@ class FileHandle:
                 logger.info(f"正在从URL下载文件：{url}")
                 file_path = self.data_dir / file_name
                 await download_file(url, file_path)
-                if os.path.exists(file_path):
+                if await anyio.Path(file_path).exists():
                     return file_path
                 logger.error(f"下载文件失败：{url}")
             else:

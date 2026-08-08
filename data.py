@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import aiosqlite
-
 from astrbot.api import logger
 
 from .config import PluginConfig

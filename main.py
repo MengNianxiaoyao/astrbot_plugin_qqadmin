@@ -1,5 +1,4 @@
 import asyncio
-import random
 import re
 
 from astrbot import logger

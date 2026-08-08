@@ -10,7 +10,6 @@ from aiocqhttp import CQHttp, Event
 from apscheduler.job import Job
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-
 from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
@@ -276,7 +275,7 @@ class CurfewHandle:
 
             try:
                 bot_id = await asyncio.wait_for(bot_id_future, timeout=25)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(f"{inst.metadata.id} 等待 WebSocket 连接超时")
                 return
 

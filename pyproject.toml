@@ -1,0 +1,23 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 200
+
+[tool.ruff.lint]
+select = [
+  "F",     # Pyflakes
+  "W",     # pycodestyle warnings
+  "E",     # pycodestyle errors
+  "ASYNC", # flake8-async
+  "C4",    # flake8-comprehensions
+  "Q",     # flake8-quotes
+  "I",     # import-order
+  "UP",    # pyupgrade
+  # "SIM", # flake8-simplify
+]
+ignore = [
+  "F403",
+  "F405",
+  "E501",
+  "ASYNC230", # TODO: handle ASYNC230 in AstrBot
+  "ASYNC240", # TODO: handle ASYNC240 in AstrBot
+]
