@@ -704,46 +704,6 @@ class QQAdminPlugin(Star):
             yield result
 
     @filter.llm_tool()
-    async def llm_start_curfew(
-        self,
-        event: AiocqhttpMessageEvent,
-        start_time: str,
-        end_time: str,
-        need_auth: bool = True,
-    ):
-        """
-        设置当前群的宵禁时间范围。
-        Args:
-            start_time(string): 宵禁开始时间，格式为HH:MM。
-            end_time(string): 宵禁结束时间，格式为HH:MM。
-            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True。
-        """
-        if need_auth:
-            if error := await perm_manager.llm_perm_block(event, perm_key="curfew", bot_perm=PermLevel.ADMIN):
-                yield error
-                return
-        if result := await self.curfew.start_curfew(event, start_time, end_time):
-            yield result
-
-    @filter.llm_tool()
-    async def llm_stop_curfew(
-        self,
-        event: AiocqhttpMessageEvent,
-        need_auth: bool = True,
-    ):
-        """
-        关闭当前群的宵禁。
-        Args:
-            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True。
-        """
-        if need_auth:
-            if error := await perm_manager.llm_perm_block(event, perm_key="curfew", bot_perm=PermLevel.ADMIN):
-                yield error
-                return
-        if result := await self.curfew.stop_curfew(event):
-            yield result
-
-    @filter.llm_tool()
     async def llm_upload_group_file(
         self,
         event: AiocqhttpMessageEvent,
