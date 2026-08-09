@@ -388,11 +388,13 @@ class QQAdminPlugin(Star):
     @filter.command("全局白名单")
     @perm_required(PermLevel.ADMIN, perm_key="join")
     async def handle_global_allow(self, event: AiocqhttpMessageEvent):
+        "全局白名单 +QQ -QQ, 带+-则增删, 不带则覆写"
         await self.join.handle_global_allow(event)
 
     @filter.command("全局黑名单")
     @perm_required(PermLevel.ADMIN, perm_key="join")
     async def handle_global_block(self, event: AiocqhttpMessageEvent):
+        "全局黑名单 +QQ -QQ, 带+-则增删, 不带则覆写"
         await self.join.handle_global_block(event)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)

@@ -1,16 +1,14 @@
 
 <div align="center">
 
-![:name](https://count.getloli.com/@astrbot_plugin_QQAdmin?name=astrbot_plugin_QQAdmin&theme=minecraft&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
-
-# astrbot_plugin_qqadmin
+# Astrbot Plugin QQAdmin
 
 _✨ QQ群管插件 ✨_  
 
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-4.0%2B-orange.svg)](https://github.com/Soulter/AstrBot)
-[![GitHub](https://img.shields.io/badge/作者-Zhalslar-blue)](https://github.com/Zhalslar)
+[![GitHub](https://img.shields.io/badge/Fork-Zhalslar-blue)](https://github.com/Zhalslar)
 
 </div>
 
@@ -27,12 +25,10 @@ _✨ QQ群管插件 ✨_
 
 ## ⌨️ 使用说明
 
-群管功能丰富，指令繁多，可以发送“/群管帮助”命令来查看具体用法。
-
 ### 群管插件命令表
 
 群管功能丰富，指令繁多，可以装个[帮助插件](https://github.com/bylkuse/astrbot_plugin_help_typst)，发送'helps'命令来查看具体用法。
-部分命令已注册为LLM工具，可利用LLM工具进行调用。其余命令考虑到实际用途未进行暂未注册。
+部分命令已注册为LLM工具，可利用LLM工具进行调用。其余命令考虑到实际用途未进行注册。
 
 | 指令格式 | 说明 | LLM工具 |
 |----------|------|:------:|
@@ -110,13 +106,6 @@ _✨ QQ群管插件 ✨_
 - 先把通用规则配置在“默认群”中，作为全局模板。
 - 仅对少数特殊群关闭“跟随默认配置”，再按需覆盖个别设置。
 - 大多数群如果保持跟随默认配置，后期维护会轻松很多。
-
-
-## 📌 注意事项
-
-- 本插件目前仅测试了napcat协议端，其他协议端可能会存在一些不兼容问题（以具体情况为准）
-- 想第一时间得到反馈的可以来作者的插件反馈群（QQ群）：460973561（不点star不给进）
-- 群管插件目前功能已基本稳定，建议非必要不更新
 
 ## 👥 贡献指南
 
