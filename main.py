@@ -48,7 +48,6 @@ class QQAdminPlugin(Star):
         self.member = MemberHandle(self)
         self.file = FileHandle(self.cfg)
         self.curfew = CurfewHandle(self.context, self.cfg)
-        self.llm = LLMHandle(self.context, self.cfg, self.db)
         self.web = QQAdminWebController(context, self.cfg, self.db, self.group_cache, self.global_list)
         self.web.register_routes()
 
