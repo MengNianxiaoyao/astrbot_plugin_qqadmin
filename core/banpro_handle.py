@@ -95,14 +95,15 @@ class BanproHandle:
     async def on_ban_words(self, event: AiocqhttpMessageEvent):
         """检测禁词并撤回消息、禁言用户"""
         gid = event.get_group_id()
+        snapshot = self.db.get_group_snapshot(gid)
 
         # 检测自定义的违禁词
-        if ban_words := await self.db.get(gid, "custom_ban_words", []):
+        if ban_words := snapshot.get("custom_ban_words", []):
             if await self.check_ban_words(event, ban_words):
                 return
 
         # 检测内置违禁词
-        if await self.db.get(gid, "builtin_ban", False):
+        if snapshot.get("builtin_ban", False):
             if await self.check_ban_words(event, self.builtin_ban_words):
                 return
 
@@ -148,7 +149,8 @@ class BanproHandle:
         """刷屏禁言"""
         group_id = event.get_group_id()
         sender_id = event.get_sender_id()
-        ban_time = await self.db.get(group_id, "spamming_ban_time", 0)
+        snapshot = self.db.get_group_snapshot(group_id)
+        ban_time = snapshot.get("spamming_ban_time", 0)
         if sender_id == event.get_self_id() or ban_time <= 0 or len(event.get_messages()) == 0:
             return
 

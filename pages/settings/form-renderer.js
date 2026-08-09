@@ -252,13 +252,17 @@ export function renderSchemaFields(root, schema, values, options = {}) {
 export function collectFormData(root) {
   const payload = {};
   root.querySelectorAll("[data-path]").forEach((node) => {
+    if (node.disabled) {
+      return;
+    }
     const { path, type } = node.dataset;
     let value;
 
     if (type === "bool") {
       value = node.checked;
     } else if (type === "int") {
-      value = Number(node.value || 0);
+      const parsed = Number(node.value);
+      value = Number.isNaN(parsed) ? 0 : parsed;
     } else if (type === "list") {
       value = node.value
         .split(/\n+/)

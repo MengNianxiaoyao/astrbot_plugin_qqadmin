@@ -19,6 +19,9 @@ class RecallHandle:
         """(引用消息)撤回 | 撤回 @某人(默认bot) 数量(默认10)"""
         client = event.bot
         chain = event.get_messages()
+        if not chain:
+            await event.send(event.plain_result("未获取到可撤回的消息"))
+            return
         first_seg = chain[0]
         if isinstance(first_seg, Reply):
             try:
