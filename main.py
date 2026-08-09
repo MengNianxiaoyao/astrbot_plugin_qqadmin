@@ -113,7 +113,7 @@ class QQAdminPlugin(Star):
         if result := await self.normal.set_group_ban(event, ban_time=0):
             yield event.plain_result(result)
 
-    @filter.command("全禁", alias={"全员禁言", "全员禁言"})
+    @filter.command("全禁", alias={"全员禁言", "群全员禁言"})
     @perm_required(PermLevel.ADMIN, perm_key="whole_ban")
     async def set_group_whole_ban(self, event: AiocqhttpMessageEvent, enable: bool | str = True):
         """全禁 开/关, 开启或关闭群全员禁言"""

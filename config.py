@@ -155,15 +155,20 @@ class PluginConfig(ConfigNode):
             return min(max(seconds, 0), 2592000)
 
     @staticmethod
-    def _resolve_ban_time_range(random_ban_time: str) -> tuple[int, int]:
-        try:
-            min_ban_time, max_ban_time = map(int, str(random_ban_time).split("~", 1))
-        except ValueError:
-            min_ban_time, max_ban_time = 30, 300
-
+    def _parse_ban_time_range(random_ban_time: str) -> tuple[int, int]:
+        """解析 "min~max" 范围，格式非法时抛出 ValueError。"""
+        min_ban_time, max_ban_time = map(int, str(random_ban_time).split("~", 1))
         min_ban_time = max(min_ban_time, 1)
         max_ban_time = min(max(max_ban_time, min_ban_time), 2592000)
         return min_ban_time, max_ban_time
+
+    @staticmethod
+    def _resolve_ban_time_range(random_ban_time: str) -> tuple[int, int]:
+        """解析 "min~max" 范围，格式非法时回退到 30~300。"""
+        try:
+            return PluginConfig._parse_ban_time_range(random_ban_time)
+        except ValueError:
+            return 30, 300
 
     def get_ban_time_with_range(self, random_ban_time: str | None, seconds: int | None = None) -> int:
         if not random_ban_time:
@@ -191,11 +196,15 @@ class PluginConfig(ConfigNode):
     def refresh_runtime_settings(self) -> None:
         """刷新依赖配置的运行时缓存。"""
         try:
-            min_ban_time, max_ban_time = self._resolve_ban_time_range(str(self.random_ban_time))
+            min_ban_time, max_ban_time = self._parse_ban_time_range(str(self.random_ban_time))
         except ValueError:
             logger.warning(f"[config:{self.__class__.__name__}] random_ban_time 格式错误: {self.random_ban_time}，已回退到 30~300")
             min_ban_time, max_ban_time = 30, 300
             self.random_ban_time = "30~300"
+            try:
+                self.save_config()
+            except Exception as e:
+                logger.error(f"[config:{self.__class__.__name__}] random_ban_time 修复写回失败: {e}")
 
         self.min_ban_time = max(min_ban_time, 1)
         self.max_ban_time = min(max(max_ban_time, self.min_ban_time), 2592000)
