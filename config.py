@@ -68,10 +68,7 @@ class ConfigNode:
                 children: dict[str, ConfigNode] = self.__dict__["_children"]
                 if key not in children:
                     if not isinstance(value, MutableMapping):
-                        raise TypeError(
-                            f"[config:{self.__class__.__name__}] "
-                            f"字段 {key} 期望 dict，实际是 {type(value).__name__}"
-                        )
+                        raise TypeError(f"[config:{self.__class__.__name__}] 字段 {key} 期望 dict，实际是 {type(value).__name__}")
                     children[key] = tp(value)
                 return children[key]
 
@@ -99,9 +96,7 @@ class ConfigNode:
         保存配置到磁盘（仅允许在根节点调用）
         """
         if not isinstance(self._data, AstrBotConfig):
-            raise RuntimeError(
-                f"{self.__class__.__name__}.save_config() 只能在根配置节点上调用"
-            )
+            raise RuntimeError(f"{self.__class__.__name__}.save_config() 只能在根配置节点上调用")
         self._data.save_config()
 
 
@@ -170,9 +165,7 @@ class PluginConfig(ConfigNode):
         max_ban_time = min(max(max_ban_time, min_ban_time), 2592000)
         return min_ban_time, max_ban_time
 
-    def get_ban_time_with_range(
-        self, random_ban_time: str | None, seconds: int | None = None
-    ) -> int:
+    def get_ban_time_with_range(self, random_ban_time: str | None, seconds: int | None = None) -> int:
         if not random_ban_time:
             return self.get_ban_time(seconds)
 
@@ -198,14 +191,9 @@ class PluginConfig(ConfigNode):
     def refresh_runtime_settings(self) -> None:
         """刷新依赖配置的运行时缓存。"""
         try:
-            min_ban_time, max_ban_time = self._resolve_ban_time_range(
-                str(self.random_ban_time)
-            )
+            min_ban_time, max_ban_time = self._resolve_ban_time_range(str(self.random_ban_time))
         except ValueError:
-            logger.warning(
-                f"[config:{self.__class__.__name__}] random_ban_time 格式错误: "
-                f"{self.random_ban_time}，已回退到 30~300"
-            )
+            logger.warning(f"[config:{self.__class__.__name__}] random_ban_time 格式错误: {self.random_ban_time}，已回退到 30~300")
             min_ban_time, max_ban_time = 30, 300
             self.random_ban_time = "30~300"
 

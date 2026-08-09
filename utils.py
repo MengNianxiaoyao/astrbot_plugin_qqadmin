@@ -1,9 +1,8 @@
-import os
 from datetime import datetime
 from pathlib import Path
 
+import anyio
 from aiohttp import ClientSession
-
 from astrbot import logger
 from astrbot.core.message.components import At, BaseMessageComponent, Image, Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
@@ -20,6 +19,7 @@ BAN_ME_QUOTES: list[str] = [
     "主人你没事吧？",
 ]
 
+
 async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
     """获取指定群友的群昵称或 Q 名，群接口失败/空结果自动降级到陌生人资料"""
     user_id = int(user_id)
@@ -30,12 +30,7 @@ async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
     # 在群里就先试群资料，任何异常或空结果都跳过
     if group_id.isdigit():
         try:
-            info = (
-                await client.get_group_member_info(
-                    group_id=int(group_id), user_id=user_id
-                )
-                or {}
-            )
+            info = await client.get_group_member_info(group_id=int(group_id), user_id=user_id) or {}
         except Exception:
             pass
 
@@ -52,11 +47,7 @@ async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
 
 def get_ats(event: AiocqhttpMessageEvent) -> list[str]:
     """获取被at者们的id列表"""
-    return [
-        str(seg.qq)
-        for seg in event.get_messages()
-        if (isinstance(seg, At) and str(seg.qq) != event.get_self_id())
-    ]
+    return [str(seg.qq) for seg in event.get_messages() if (isinstance(seg, At) and str(seg.qq) != event.get_self_id())]
 
 
 def get_replyer_id(event: AiocqhttpMessageEvent) -> str | None:
@@ -71,11 +62,7 @@ def get_reply_message_str(event: AiocqhttpMessageEvent) -> str | None:
     获取被引用的消息解析后的纯文本消息字符串。
     """
     return next(
-        (
-            seg.message_str
-            for seg in event.message_obj.message
-            if isinstance(seg, Reply)
-        ),
+        (seg.message_str for seg in event.message_obj.message if isinstance(seg, Reply)),
         "",
     )
 
@@ -93,10 +80,10 @@ async def download_file(url: str, save_path: Path) -> Path | None:
             response = await client.get(url)
             file = await response.read()
 
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            await anyio.Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
-            with open(save_path, "wb") as img_file:
-                img_file.write(file)
+            async with await anyio.open_file(save_path, "wb") as img_file:
+                await img_file.write(file)
 
             logger.info(f"文件已保存: {save_path}")
             return save_path

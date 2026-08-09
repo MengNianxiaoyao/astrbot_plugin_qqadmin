@@ -66,12 +66,8 @@ class QQAdminPageService:
         groups = await self.group_cache.list_groups(force=force)
         return await self._build_group_entries(groups)
 
-    async def list_groups_with_bot_roles(
-        self, force: bool = False
-    ) -> list[dict[str, Any]]:
-        groups = await self.group_cache.list_groups_with_bot_roles(
-            force_bot_roles=force
-        )
+    async def list_groups_with_bot_roles(self, force: bool = False) -> list[dict[str, Any]]:
+        groups = await self.group_cache.list_groups_with_bot_roles(force_bot_roles=force)
         return await self._build_group_entries(groups)
 
     async def _build_group_entries(
@@ -122,9 +118,7 @@ class QQAdminPageService:
             "is_default_group": False,
         }
 
-    async def update_group_config(
-        self, group_id: str, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def update_group_config(self, group_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         if str(group_id).strip() == DEFAULT_GROUP_ID:
             return await self.update_default_group_config(payload)
 
@@ -255,9 +249,7 @@ class QQAdminPageService:
 
     def _apply_group_level_updates(self, updated: dict[str, Any]) -> None:
         default_fields = self.schema.get("default", {}).get("items", {})
-        default_updates = {
-            key: value for key, value in updated.items() if key in default_fields
-        }
+        default_updates = {key: value for key, value in updated.items() if key in default_fields}
         self._merge_dict(self.cfg.default, default_updates)
 
         if "admin_audit" in updated:
@@ -285,9 +277,7 @@ class QQAdminPageService:
             "level_threshold",
             "perms",
         ]
-        return {
-            key: copy.deepcopy(self.schema[key]) for key in keys if key in self.schema
-        }
+        return {key: copy.deepcopy(self.schema[key]) for key in keys if key in self.schema}
 
     @staticmethod
     def _merge_dict(target: dict[str, Any], source: dict[str, Any] | None) -> None:
@@ -312,9 +302,7 @@ class QQAdminPageService:
             for key, child_schema in items.items():
                 child_current = current_map.get(key, child_schema.get("default"))
                 child_value = payload[key] if key in payload else child_current
-                result[key] = self._sanitize_value(
-                    child_value, child_schema, child_current
-                )
+                result[key] = self._sanitize_value(child_value, child_schema, child_current)
             return result
 
         if field_type == "bool":

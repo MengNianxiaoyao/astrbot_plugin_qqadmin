@@ -1,0 +1,32 @@
+name: check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install UV
+        run: pip install uv
+      - name: Run checks
+        run: |
+          uvx --from ruff==0.15.22 ruff format .
+          uvx --from ruff==0.15.22 ruff check --fix .
+      - name: Commit changes
+        id: commit
+        uses: EndBug/add-and-commit@v9.1.4
+        with:
+          author_name: github-actions
+          author_email: github-actions[bot]@users.noreply.github.com
+          message: 'ruff: check'
+          add: '.'
