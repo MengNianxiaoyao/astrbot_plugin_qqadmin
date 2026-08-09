@@ -14,6 +14,7 @@ class RecallHandle:
     def __init__(self, config: PluginConfig, db: QQAdminDB):
         self.cfg = config
         self.db = db
+
     async def delete_msg(self, event: AiocqhttpMessageEvent):
         """(引用消息)撤回 | 撤回 @某人(默认bot) 数量(默认10)"""
         client = event.bot
@@ -39,9 +40,7 @@ class RecallHandle:
                 "count": count,
                 "reverseOrder": True,
             }
-            result: dict = await client.api.call_action(
-                "get_group_msg_history", **payloads
-            )
+            result: dict = await client.api.call_action("get_group_msg_history", **payloads)
 
             messages = list(reversed(result.get("messages", [])))
             delete_count = 0
@@ -63,6 +62,4 @@ class RecallHandle:
             tasks = [try_delete(msg) for msg in messages]
             await asyncio.gather(*tasks)
 
-            await event.send(
-                event.plain_result(f"已从{count}条消息中撤回{delete_count}条")
-            )
+            await event.send(event.plain_result(f"已从{count}条消息中撤回{delete_count}条"))

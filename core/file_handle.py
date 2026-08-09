@@ -225,17 +225,13 @@ class FileHandle:
                     None,
                 )
             if file:
-                await event.bot.delete_group_file(
-                    group_id=group_id, file_id=file["file_id"]
-                )
+                await event.bot.delete_group_file(group_id=group_id, file_id=file["file_id"])
                 return f"已删除群文件：📄{file_name}"
 
         # 删除文件夹
         elif folder_name and not file_name:
             if target_folder := await self._get_folder(event, folder_name):
-                await event.bot.delete_group_folder(
-                    group_id=group_id, folder_id=target_folder["folder_id"]
-                )
+                await event.bot.delete_group_folder(group_id=group_id, folder_id=target_folder["folder_id"])
                 return f"已删除群文件夹：▶{folder_name}"
             else:
                 return f"群文件夹【{folder_name}】不存在"
