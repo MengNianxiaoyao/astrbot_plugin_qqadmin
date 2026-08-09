@@ -103,23 +103,20 @@ class QQAdminPlugin(Star):
     @perm_required(PermLevel.ADMIN, perm_key="set_group_card")
     async def set_group_ban(self, event: AiocqhttpMessageEvent, ban_time=None):
         """禁言 <秒数> @群友"""
-        if result := await self.normal.set_group_ban(event, ban_time):
-            yield event.plain_result(result)
+        await self.normal.set_group_ban(event, ban_time)
 
     @filter.command("解禁")
     @perm_required(PermLevel.ADMIN, perm_key="set_group_card")
     async def cancel_group_ban(self, event: AiocqhttpMessageEvent):
         """解禁 @群友"""
-        if result := await self.normal.set_group_ban(event, ban_time=0):
-            yield event.plain_result(result)
+        await self.normal.set_group_ban(event, ban_time=0)
 
     @filter.command("全禁", alias={"全员禁言", "群全员禁言"})
     @perm_required(PermLevel.ADMIN, perm_key="whole_ban")
     async def set_group_whole_ban(self, event: AiocqhttpMessageEvent, enable: bool | str = True):
         """全禁 开/关, 开启或关闭群全员禁言"""
         enable = parse_bool(enable, default=True)
-        if result := await self.normal.set_group_whole_ban(event, enable):
-            yield event.plain_result(result)
+        await self.normal.set_group_whole_ban(event, enable)
 
     @filter.command("改名")
     @perm_required(PermLevel.ADMIN, perm_key="set_group_card")
