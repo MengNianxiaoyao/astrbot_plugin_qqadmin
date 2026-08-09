@@ -63,5 +63,5 @@ class NoticeHandle:
             formatted_message = f"【{publish_time}-{sender_id}】\n\n{textwrap.indent(message_text, '    ')}"
             formatted_messages.append(formatted_message)
 
-        notices_str = "\n\n\n".join(formatted_messages)
+        notices_str = "\n\n".join(formatted_messages)
         return notices_str or "当前群没有群公告"
