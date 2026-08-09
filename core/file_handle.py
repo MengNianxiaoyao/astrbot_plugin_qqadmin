@@ -150,7 +150,7 @@ class FileHandle:
                     return file_path
                 logger.error(f"下载文件失败：{url}")
             else:
-                await event.send(event.plain_result("请引用一个文件"))
+                return None
 
     async def _ensure_folder(self, event: AiocqhttpMessageEvent, folder_name: str):
         """
@@ -170,8 +170,6 @@ class FileHandle:
             folder_name=safe_name,
             parent_id="/",
         )
-        await event.send(event.plain_result(f"新建群文件夹：▶ {safe_name}"))
-
         # 再次获取，确保拿到 folder_id
         return await self._get_folder(event, safe_name)
 
@@ -179,8 +177,7 @@ class FileHandle:
         """上传群文件"""
         folder_name, file_name = await self._parse_path(event, path)
         if not file_name:
-            await event.send(event.plain_result("路径未包含文件名，无法上传"))
-            return
+            return "路径未包含文件名，无法上传"
 
         group_id = int(event.get_group_id())
         client = event.bot
@@ -188,7 +185,7 @@ class FileHandle:
         # 拼接本地缓存路径
         file_path = await self._save_temp_file(event, file_name)
         if not file_path or not file_path.exists():
-            return
+            return "请引用一个文件"
 
         folder_id = None
         if folder_name:
@@ -204,14 +201,14 @@ class FileHandle:
             )
         except Exception as e:
             logger.error(f"上传群文件失败：{e}")
-            await event.send(event.plain_result(f"上传失败：{e}"))
+            return f"上传失败：{e}"
+        return f"群文件已上传：{path}"
 
     async def delete_group_file(self, event: AiocqhttpMessageEvent, path: str):
         """删除群文件夹或群文件"""
         folder_name, file_name = await self._parse_path(event, path)
         if not folder_name and not file_name:
-            await event.send(event.plain_result("请指定要删除的文件夹或文件"))
-            return
+            return "请指定要删除的文件夹或文件"
         group_id = int(event.get_group_id())
 
         # 删除文件
@@ -220,8 +217,7 @@ class FileHandle:
             if folder_name:
                 target_folder, file = await self._get_file_in_folder(event, folder_name, file_name)
                 if not target_folder or not file:
-                    await event.send(event.plain_result(f"{path} 不存在"))
-                    return
+                    return f"{path} 不存在"
             else:
                 response = await event.bot.get_group_root_files(group_id=group_id)
                 file = next(
@@ -229,18 +225,23 @@ class FileHandle:
                     None,
                 )
             if file:
-                await event.bot.delete_group_file(group_id=group_id, file_id=file["file_id"])
-                await event.send(event.plain_result(f"已删除群文件：📄{file_name}"))
+                await event.bot.delete_group_file(
+                    group_id=group_id, file_id=file["file_id"]
+                )
+                return f"已删除群文件：📄{file_name}"
 
         # 删除文件夹
         elif folder_name and not file_name:
             if target_folder := await self._get_folder(event, folder_name):
-                await event.bot.delete_group_folder(group_id=group_id, folder_id=target_folder["folder_id"])
-                await event.send(event.plain_result(f"已删除群文件夹：▶{folder_name}"))
+                await event.bot.delete_group_folder(
+                    group_id=group_id, folder_id=target_folder["folder_id"]
+                )
+                return f"已删除群文件夹：▶{folder_name}"
             else:
-                await event.send(event.plain_result(f"群文件夹【{folder_name}】不存在"))
+                return f"群文件夹【{folder_name}】不存在"
+        return "未找到要删除的群文件或文件夹"
 
-    async def view_group_file(self, event: AiocqhttpMessageEvent, path):
+    async def view_group_file(self, event: AiocqhttpMessageEvent, path) -> str:
         """查看群文件/目录，path 可以是 文件夹名、文件名 或 文件夹名/文件名"""
         group_id = int(event.get_group_id())
         client = event.bot
@@ -248,25 +249,22 @@ class FileHandle:
             # 查看根目录
             response = await client.get_group_root_files(group_id=group_id)
             text, _ = self._get_folder_info(response, "【群文件根目录】")
-            yield event.plain_result(text)
-            return
+            return text
 
         folder_name, file_name = await self._parse_path(event, str(path))
 
         if folder_name and file_name:
             target_folder, file = await self._get_file_in_folder(event, folder_name, file_name)
             if not file:
-                yield event.plain_result(f"未能找到群文件：📄{file_name}")
-                return
-            yield event.plain_result(self._format_file_info(file))
-            return
+                return f"未能找到群文件：📄{file_name}"
+            return self._format_file_info(file)
 
         if folder_name and not file_name:
             target_folder = await self._get_folder(event, folder_name)
             if target_folder:
                 response = await client.get_group_files_by_folder(group_id=group_id, folder_id=target_folder["folder_id"])
                 text, _ = self._get_folder_info(response, f"【{folder_name}】")
-                yield event.plain_result(text)
+                return text
             else:
                 # 根目录单文件
                 response = await client.get_group_root_files(group_id=group_id)
@@ -274,9 +272,9 @@ class FileHandle:
                     (f for f in response["files"] if folder_name == f["file_name"]),
                     None,
                 ):
-                    yield event.plain_result(self._format_file_info(file))
+                    return self._format_file_info(file)
                 else:
-                    yield event.plain_result(f"未能找到【{folder_name}】")
+                    return f"未能找到【{folder_name}】"
         elif not folder_name and file_name:
             # 根目录文件
             response = await client.get_group_root_files(group_id=group_id)
@@ -284,7 +282,8 @@ class FileHandle:
                 (f for f in response["files"] if file_name == f["file_name"]),
                 None,
             ):
-                yield event.plain_result(self._format_file_info(file))
+                return self._format_file_info(file)
 
             else:
-                yield event.plain_result(f"未能找到群文件：📄{file_name}")
+                return f"未能找到群文件：📄{file_name}"
+        return "未找到群文件"

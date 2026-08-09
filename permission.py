@@ -123,6 +123,32 @@ class PermissionManager:
 
         return None
 
+    async def llm_perm_block(
+        self,
+        event: AiocqhttpMessageEvent,
+        perm_key: str,
+        bot_perm: PermLevel = PermLevel.ADMIN,
+    ) -> str | None:
+        if event.platform_meta.name != "aiocqhttp":
+            return "该工具仅支持通过 QQ 群聊调用"
+
+        if event.is_private_chat():
+            return "该工具仅支持在 QQ 群聊中调用"
+
+        if not self._initialized:
+            logger.error(
+                "PermissionManager is not initialized while checking LLM tool permission: %s",
+                perm_key,
+            )
+            return "内部错误：权限系统尚未正确加载"
+
+        return await self.perm_block(
+            event,
+            bot_perm=bot_perm,
+            perm_key=perm_key,
+            check_at=False,
+        )
+
 
 perm_manager = PermissionManager()
 

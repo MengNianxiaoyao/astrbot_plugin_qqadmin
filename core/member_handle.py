@@ -95,8 +95,8 @@ class MemberHandle:
             if event.message_str == "确认清理":
                 msg_list = []
                 for clear_id in clear_ids:
+                    target_name = await get_nickname(event, user_id=clear_id)
                     try:
-                        target_name = await get_nickname(event, user_id=clear_id)
                         await event.bot.set_group_kick(
                             group_id=int(group_id),
                             user_id=int(clear_id),
