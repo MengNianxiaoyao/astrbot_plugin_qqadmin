@@ -9,16 +9,6 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
 
-BAN_ME_QUOTES: list[str] = [
-    "还真有人有这种奇怪的要求",
-    "满足你",
-    "静一会也挺好的",
-    "是你自己要求的哈！",
-    "行，你去静静",
-    "好好好，禁了",
-    "主人你没事吧？",
-]
-
 
 async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
     """获取指定群友的群昵称或 Q 名，群接口失败/空结果自动降级到陌生人资料"""
@@ -104,7 +94,7 @@ def extract_image_url(chain: list[BaseMessageComponent]) -> str | None:
     return None
 
 
-def parse_bool(mode: str | bool | None):
+def parse_bool(mode: str | bool | None, default: bool = False):
     """解析布尔值"""
     mode = str(mode).strip().lower()
     match mode:
@@ -113,4 +103,4 @@ def parse_bool(mode: str | bool | None):
         case "关" | "关闭" | "禁用" | "off" | "false" | "0" | "否" | "假":
             return False
         case _:
-            return None
+            return default

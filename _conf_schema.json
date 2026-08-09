@@ -229,6 +229,30 @@
     "hint": "设置各个命令的使用权限",
     "type": "object",
     "items": {
+      "set_config": {
+        "description": "群管配置",
+        "type": "string",
+        "options": [
+          "超管",
+          "群主",
+          "管理员",
+          "高等级成员",
+          "成员"
+        ],
+        "default": "管理员"
+      },
+      "reset_config": {
+        "description": "群管重置",
+        "type": "string",
+        "options": [
+          "超管",
+          "群主",
+          "管理员",
+          "高等级成员",
+          "成员"
+        ],
+        "default": "管理员"
+      },
       "set_group_ban": {
         "description": "禁言",
         "type": "string",
@@ -240,18 +264,6 @@
           "成员"
         ],
         "default": "管理员"
-      },
-      "set_group_ban_me": {
-        "description": "禁我",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "成员"
       },
       "cancel_group_ban": {
         "description": "解禁",
@@ -289,18 +301,6 @@
           "成员"
         ],
         "default": "管理员"
-      },
-      "set_group_card_me": {
-        "description": "改我",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "成员"
       },
       "set_group_special_title": {
         "description": "头衔",
@@ -610,54 +610,6 @@
           "成员"
         ],
         "default": "成员"
-      },
-      "ai_set_card": {
-        "description": "取名",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "成员"
-      },
-      "ai_set_title": {
-        "description": "取头衔",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "成员"
-      },
-      "set_config": {
-        "description": "群管配置",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "管理员"
-      },
-      "reset_config": {
-        "description": "群管重置",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "管理员"
       }
     }
   }
