@@ -468,7 +468,7 @@ class QQAdminPlugin(Star):
         if need_auth:
             if error := await perm_manager.llm_perm_block(
                 event,
-                perm_key="set_group_ban",
+                perm_key="group_ban",
                 bot_perm=PermLevel.ADMIN,
             ):
                 yield error
