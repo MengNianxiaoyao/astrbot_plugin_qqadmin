@@ -251,10 +251,9 @@ export function renderSchemaFields(root, schema, values, options = {}) {
 
 export function collectFormData(root) {
   const payload = {};
+  // 收集所有字段（含禁用字段），使 payload 与页面展示的配置完全一致（所见即所得），
+  // 不依赖后端根据 missing 字段回填来还原配置，从而与禁用态解耦。
   root.querySelectorAll("[data-path]").forEach((node) => {
-    if (node.disabled) {
-      return;
-    }
     const { path, type } = node.dataset;
     let value;
 

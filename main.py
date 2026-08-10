@@ -100,13 +100,13 @@ class QQAdminPlugin(Star):
             yield event.plain_result("已重置本群的群管配置")
 
     @filter.command("禁言")
-    @perm_required(PermLevel.ADMIN, perm_key="set_group_card")
+    @perm_required(PermLevel.ADMIN, perm_key="group_ban")
     async def set_group_ban(self, event: AiocqhttpMessageEvent, ban_time=None):
         """禁言 <秒数> @群友"""
         await self.normal.set_group_ban(event, ban_time)
 
     @filter.command("解禁")
-    @perm_required(PermLevel.ADMIN, perm_key="set_group_card")
+    @perm_required(PermLevel.ADMIN, perm_key="group_ban")
     async def cancel_group_ban(self, event: AiocqhttpMessageEvent):
         """解禁 @群友"""
         await self.normal.set_group_ban(event, ban_time=0)

@@ -83,13 +83,13 @@
       },
       "use_global_allow": {
         "description": "使用全局白名单",
-        "hint": "开启后，使用全局白名单（JSON文件）替代本群白名单",
+        "hint": "开启后，使用全局白名单（JSON文件）替代进群白名单",
         "type": "bool",
         "default": false
       },
       "use_global_block": {
         "description": "使用全局黑名单",
-        "hint": "开启后，使用全局黑名单（JSON文件）替代本群黑名单，自动拉黑操作也将写入全局黑名单",
+        "hint": "开启后，使用全局黑名单（JSON文件）替代进群黑名单，自动拉黑操作也将写入全局黑名单",
         "type": "bool",
         "default": false
       },
@@ -253,20 +253,8 @@
         ],
         "default": "管理员"
       },
-      "set_group_ban": {
-        "description": "禁言",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "管理员"
-      },
-      "cancel_group_ban": {
-        "description": "解禁",
+      "group_ban": {
+        "description": "禁言与解禁",
         "type": "string",
         "options": [
           "超管",

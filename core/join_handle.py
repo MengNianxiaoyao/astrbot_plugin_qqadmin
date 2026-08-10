@@ -1,3 +1,5 @@
+import time
+
 from aiocqhttp import CQHttp
 from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
@@ -6,7 +8,13 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 
 from ..config import PluginConfig
 from ..data import QQAdminDB, QQAdminGlobalList
-from ..utils import get_nickname, get_reply_message_str, parse_bool
+from ..utils import (
+    extract_message_id,
+    get_nickname,
+    get_reply_message_str,
+    get_replyer_message_id,
+    parse_bool,
+)
 
 
 class JoinHandle:
@@ -16,6 +24,8 @@ class JoinHandle:
         self.global_list = global_list or QQAdminGlobalList(config.data_dir)
         self._group_cache = group_cache
         self._fail: dict[str, int] = {}
+        # 待人工审批的进群申请：{通知消息ID: {flag, gid, uid, nickname, ts}}
+        self._pending: dict[str, dict] = {}
 
     async def _get_group_name(self, gid: str) -> str:
         if self._group_cache:
@@ -28,12 +38,44 @@ class JoinHandle:
                 pass
         return gid
 
-    async def _send_admin(self, client: CQHttp, message: str):
+    async def _send_admin(self, client: CQHttp, message: str) -> list[str]:
+        """向bot管理员私聊发送消息，返回已发送消息的消息ID列表。"""
+        sent_ids: list[str] = []
         for admin_id in self.cfg.admins_id:
             try:
-                await client.send_private_msg(user_id=int(admin_id), message=message)
+                result = await client.send_private_msg(user_id=int(admin_id), message=message)
+                mid = extract_message_id(result)
+                if mid:
+                    sent_ids.append(mid)
             except Exception as e:
                 logger.error(f"无法发送消息给bot管理员：{e}")
+        return sent_ids
+
+    def _record_pending(self, key: str, gid: str, uid: str, nickname: str, flag: str):
+        """登记一条待人工审批的进群申请，供管理员回复审批时精确匹配。"""
+        self._pending[key] = {
+            "gid": gid,
+            "uid": uid,
+            "nickname": nickname,
+            "flag": flag,
+            "ts": time.time(),
+        }
+        # 简单清理超过3天的过期记录，防止内存无限增长
+        if len(self._pending) > 200:
+            threshold = time.time() - 259200
+            stale = [k for k, v in self._pending.items() if v["ts"] < threshold]
+            for k in stale:
+                self._pending.pop(k, None)
+
+    @staticmethod
+    def _extract_field(text: str, key: str) -> str | None:
+        """按“键前缀”定位字段内容，兼容通知行序变化（不依赖固定行号）。"""
+        for line in text.splitlines():
+            if line.startswith(key):
+                value = line[len(key):].strip()
+                if value:
+                    return value
+        return None
 
     # -----------修改配置-----------------
 
@@ -345,10 +387,16 @@ class JoinHandle:
                 notice += f"\n处理结果：{approve_msg}"
 
             group_config = self.db.get_group_snapshot(gid)
+            sent_ids: list[str] = []
             if group_config.get("admin_audit", self.cfg.admin_audit):
-                await self._send_admin(client, notice)
+                sent_ids = await self._send_admin(client, notice)
             else:
-                await event.send(event.plain_result(notice))
+                result = await event.send(event.plain_result(notice))
+                mid = extract_message_id(result)
+                if mid:
+                    sent_ids.append(mid)
+            for mid in sent_ids:
+                self._record_pending(mid, gid, uid, nickname, flag)
 
         # 主动退群事件
         elif raw.get("post_type") == "notice" and raw.get("notice_type") == "group_decrease" and raw.get("sub_type") == "leave":
@@ -392,26 +440,45 @@ class JoinHandle:
                     pass
 
     async def set_approve(self, event: AiocqhttpMessageEvent, extra: str = "", approve: bool = True) -> str | None:
-        """处理进群申请"""
+        """处理进群申请：优先按引用消息ID精确匹配，失败则按文本内容定位兜底。"""
         text = get_reply_message_str(event)
         if not text:
             return "未引用任何【进群申请】"
-        lines = text.split("\n")
-        if "进群申请" in text and len(lines) >= 4:
-            nickname = lines[2].split("：")[1]  # 第3行冒号后文本为nickname
-            flag = lines[4].split("：")[1]  # 第5行冒号后文本为flag
+
+        nickname = None
+        flag = None
+
+        # A2：按被引用消息ID精确匹配已登记的通知
+        reply_id = get_replyer_message_id(event)
+        if reply_id:
+            entry = self._pending.pop(reply_id, None)
+            if entry:
+                flag = entry["flag"]
+                nickname = entry["nickname"]
+
+        # A1：兜底从通知文本中按内容定位解析（不依赖固定行号）
+        if flag is None:
             try:
-                await event.bot.set_group_add_request(flag=flag, sub_type="add", approve=approve, reason=extra)
-                if approve:
-                    reply = f"已同意{nickname}进群"
-                else:
-                    reply = f"已拒绝{nickname}进群" + (f"\n理由：{extra}" if extra else "")
-                return reply
+                nickname = self._extract_field(text, "昵称：") or nickname
+                flag = self._extract_field(text, "flag：") or flag
             except Exception as e:
-                logger.error(f"处理进群申请失败: {e}")
-                return "这条申请处理过了或者格式不对"
-        else:
-            return "引用的可能不是【进群申请】"
+                logger.error(f"解析进群申请引用失败: {e}")
+                return "这条申请格式不对"
+
+        if not flag:
+            return "引用的可能不是【进群申请】或该申请已失效"
+
+        nickname = nickname or "该用户"
+        try:
+            await event.bot.set_group_add_request(flag=flag, sub_type="add", approve=approve, reason=extra)
+            if approve:
+                reply = f"已同意{nickname}进群"
+            else:
+                reply = f"已拒绝{nickname}进群" + (f"\n理由：{extra}" if extra else "")
+            return reply
+        except Exception as e:
+            logger.error(f"处理进群申请失败: {e}")
+            return "这条申请处理过了或者格式不对"
 
     async def agree_add_group(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """批准进群申请"""

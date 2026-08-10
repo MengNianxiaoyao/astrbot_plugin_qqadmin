@@ -57,29 +57,59 @@ def get_reply_message_str(event: AiocqhttpMessageEvent) -> str | None:
     )
 
 
+def get_replyer_message_id(event: AiocqhttpMessageEvent) -> str | None:
+    """获取被引用消息的消息ID，用于精确匹配进群申请通知等引用消息。"""
+    for seg in event.get_messages():
+        if isinstance(seg, Reply) and getattr(seg, "message_id", None):
+            return str(seg.message_id)
+    return None
+
+
+def extract_message_id(result) -> str | None:
+    """从 send 类接口的返回结果中提取消息ID（兼容 dict / 带属性对象 / None 多种形态）。"""
+    if result is None:
+        return None
+    if isinstance(result, dict):
+        data = result.get("data")
+        if isinstance(data, dict) and data.get("message_id"):
+            return str(data["message_id"])
+        if result.get("message_id"):
+            return str(result["message_id"])
+    mid = getattr(result, "message_id", None)
+    return str(mid) if mid else None
+
+
 def format_time(timestamp):
     """格式化时间戳"""
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
 
 
 async def download_file(url: str, save_path: Path) -> Path | None:
-    """下载文件并保存到本地"""
-    url = url.replace("https://", "http://")
-    try:
-        async with ClientSession() as client:
-            response = await client.get(url)
-            file = await response.read()
+    """下载文件并保存到本地。优先使用原协议，失败后回退到另一种协议（http/https 互转）。"""
+    candidates = [url]
+    if url.startswith("https://"):
+        candidates.append("http://" + url[len("https://") :])
+    elif url.startswith("http://"):
+        candidates.append("https://" + url[len("http://") :])
 
-            await anyio.Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+    for candidate in candidates:
+        try:
+            async with ClientSession() as client:
+                response = await client.get(candidate)
+                response.raise_for_status()
+                file = await response.read()
 
-            async with await anyio.open_file(save_path, "wb") as img_file:
-                await img_file.write(file)
+                await anyio.Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"文件已保存: {save_path}")
-            return save_path
-    except Exception as e:
-        logger.error(f"文件下载并保存失败: {e}")
-        return None
+                async with await anyio.open_file(save_path, "wb") as img_file:
+                    await img_file.write(file)
+
+                logger.info(f"文件已保存: {save_path}")
+                return save_path
+        except Exception as e:
+            logger.error(f"文件下载失败({candidate}): {e}")
+
+    return None
 
 
 def extract_image_url(chain: list[BaseMessageComponent]) -> str | None:

@@ -38,16 +38,19 @@ class PermLevel(IntEnum):
 
     @classmethod
     def from_str(cls, perm_str: str):
+        """
+        将权限字符串解析为权限等级。
+        仅能识别配置中的合法取值；无法识别时返回 None，由调用方决定安全的回退策略，
+        避免把恶意/无效配置解析为最低权限等级（UNKNOWN）从而放行所有用户。
+        """
         mapping = {
             "超管": cls.SUPERUSER,
             "群主": cls.OWNER,
             "管理员": cls.ADMIN,
             "高等级成员": cls.HIGH,
             "成员": cls.MEMBER,
-            "未知": cls.UNKNOWN,
-            "无权限": cls.UNKNOWN,
         }
-        return mapping.get(perm_str, cls.UNKNOWN)
+        return mapping.get(str(perm_str or "").strip())
 
 
 class PermissionManager:
@@ -107,6 +110,9 @@ class PermissionManager:
         group_config = self.db.get_group_snapshot(event.get_group_id()) if self.db is not None else {"perms": self.cfg.perms if self.cfg else {}}
         perms = group_config.get("perms", {})
         required_level = PermLevel.from_str(str(perms.get(perm_key, "管理员")))
+        if required_level is None:
+            # 配置中权限值为无效项时回退到管理员，防止权限放松导致越权
+            required_level = PermLevel.ADMIN
 
         if user_level > required_level:
             return f"你没{required_level}权限"
