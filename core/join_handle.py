@@ -439,6 +439,16 @@ class JoinHandle:
                 except Exception:
                     pass
 
+    @staticmethod
+    def _approve_fail_hint(exc: Exception) -> str:
+        """依据进群审批 API 报错文案给出针对性提示。"""
+        msg = str(exc).lower()
+        if "already agree" in msg:
+            return "这条申请已经被同意了"
+        if "already refuse" in msg or "already disagree" in msg:
+            return "这条申请已经被驳回了"
+        return "处理失败，该申请可能已失效或已被处理，请核对后重试"
+
     async def set_approve(self, event: AiocqhttpMessageEvent, extra: str = "", approve: bool = True) -> str | None:
         """处理进群申请：优先按引用消息ID精确匹配，失败则按文本内容定位兜底。"""
         text = get_reply_message_str(event)
@@ -478,7 +488,7 @@ class JoinHandle:
             return reply
         except Exception as e:
             logger.error(f"处理进群申请失败: {e}")
-            return "这条申请处理过了或者格式不对"
+            return self._approve_fail_hint(e)
 
     async def agree_add_group(self, event: AiocqhttpMessageEvent, extra: str = ""):
         """批准进群申请"""
