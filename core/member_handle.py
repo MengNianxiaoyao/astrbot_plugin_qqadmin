@@ -37,10 +37,7 @@ class MemberHandle:
             except (TypeError, ValueError):
                 return 0
 
-        info_lines = [
-            f"{format_time(_join_time(m))}：【{m.get('level', 0)}】{m.get('user_id', '?')}-{m.get('nickname', '（无昵称）')}"
-            for m in sorted(members_data, key=_join_time)
-        ]
+        info_lines = [f"{format_time(_join_time(m))}：【{m.get('level', 0)}】{m.get('user_id', '?')}-{m.get('nickname', '（无昵称）')}" for m in sorted(members_data, key=_join_time)]
 
         if not info_lines:
             await event.send(event.plain_result("群内暂无成员数据"))

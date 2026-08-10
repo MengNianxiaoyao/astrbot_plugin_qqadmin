@@ -72,7 +72,7 @@ class JoinHandle:
         """按“键前缀”定位字段内容，兼容通知行序变化（不依赖固定行号）。"""
         for line in text.splitlines():
             if line.startswith(key):
-                value = line[len(key):].strip()
+                value = line[len(key) :].strip()
                 if value:
                     return value
         return None
