@@ -1,10 +1,11 @@
+import re
 from datetime import datetime
 from pathlib import Path
 
 import anyio
 from aiohttp import ClientSession
 from astrbot import logger
-from astrbot.core.message.components import At, BaseMessageComponent, Image, Reply
+from astrbot.core.message.components import At, BaseMessageComponent, Image, Plain, Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
@@ -134,3 +135,91 @@ def parse_bool(mode: str | bool | None, default: bool = False):
             return False
         case _:
             return default
+
+
+# 匹配 [CQ:type] 或 [CQ:type,param=val,...]; param 部分可选,兼容无参 CQ
+_CQ_PATTERN = re.compile(r"\[CQ:(\w+)(?:,([^\]]*))?\]")
+
+# 允许的本地图片根目录由调用方传入时校验;此处仅作基础存在性校验,
+# 真正的越权防护由配置层(仅群管可改欢迎词)承担,不在此处强制白名单。
+
+
+def parse_cq_to_chain(text: str) -> list:
+    """将含 CQ 码的文本解析为 AstrBot 消息组件列表.
+
+    支持:
+      - [CQ:at,qq=123] -> At
+      - [CQ:image,file=.../url=...] -> Image (http(s) 走 fromURL, 本地走 fromFileSystem)
+    未识别的 CQ 类型、参数缺失/非法时保留为 Plain 原文,避免静默丢弃.
+    本地图片不存在时记录日志并插入通用占位 Plain,不暴露文件系统路径.
+    """
+    if not text:
+        return []
+
+    chain: list = []
+    last_pos = 0
+
+    for match in _CQ_PATTERN.finditer(text):
+        # 前缀纯文本
+        plain_text = text[last_pos : match.start()]
+        if plain_text:
+            chain.append(Plain(plain_text))
+
+        raw = match.group(0)
+        cq_type = match.group(1)
+        params_str = match.group(2) or ""
+
+        params: dict[str, str] = {}
+        if params_str:
+            for item in params_str.split(","):
+                if "=" in item:
+                    k, v = item.split("=", 1)
+                    # CQ 码中 &amp; 为 & 的转义
+                    v = v.replace("&amp;", "&")
+                    params[k.strip()] = v.strip()
+
+        if cq_type == "at":
+            qq = (params.get("qq") or "").strip()
+            if qq and qq.isdigit():
+                chain.append(At(qq=qq, name=""))
+            else:
+                # qq 缺失或非法:保留原文便于发现配置问题
+                logger.warning(f"CQ at 缺少合法 qq 参数,保留原文: {raw}")
+                chain.append(Plain(raw))
+        elif cq_type == "image":
+            file_path = params.get("file") or params.get("url") or ""
+            file_path = file_path.strip()
+            if not file_path:
+                logger.warning(f"CQ image 缺少 file/url 参数,保留原文: {raw}")
+                chain.append(Plain(raw))
+            elif file_path.startswith("http://") or file_path.startswith("https://"):
+                try:
+                    chain.append(Image.fromURL(file_path))
+                except Exception as e:
+                    logger.warning(f"CQ image URL 解析失败: {e}, 原文: {raw}")
+                    chain.append(Plain(raw))
+            else:
+                # 本地路径:支持 file= 传入的绝对/相对路径
+                # 兼容 Windows 路径中可能含的转义,此处不再二次转义
+                p = Path(file_path)
+                try:
+                    if p.exists() and p.is_file():
+                        chain.append(Image.fromFileSystem(str(p.resolve())))
+                    else:
+                        logger.warning(f"CQ image 本地文件不存在,已省略: {raw}")
+                        chain.append(Plain("[图片加载失败]"))
+                except Exception as e:
+                    logger.warning(f"CQ image 本地文件处理失败: {e}")
+                    chain.append(Plain("[图片加载失败]"))
+        else:
+            # 未知类型:保留原文,避免丢弃未来扩展的 CQ
+            chain.append(Plain(raw))
+
+        last_pos = match.end()
+
+    # 尾段纯文本
+    rest = text[last_pos:]
+    if rest:
+        chain.append(Plain(rest))
+
+    return chain

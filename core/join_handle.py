@@ -14,6 +14,7 @@ from ..utils import (
     get_reply_message_str,
     get_replyer_message_id,
     parse_bool,
+    parse_cq_to_chain,
 )
 
 
@@ -425,8 +426,23 @@ class JoinHandle:
             join_welcome = await self.db.get(gid, "join_welcome")
             if join_welcome:
                 nickname = await get_nickname(event, uid)
-                welcome = join_welcome.format(nickname=nickname)
-                await event.send(event.plain_result(welcome))
+                # 兼容 {nickname}/{qq} 双变量;用 replace 避免 format 缺键抛异常
+                welcome = str(join_welcome).replace("{nickname}", nickname).replace("{qq}", uid)
+                if welcome:
+                    try:
+                        chain = parse_cq_to_chain(welcome)
+                    except Exception as e:
+                        logger.warning(f"解析进群欢迎词失败: {e}, 回退为纯文本")
+                        chain = []
+                    if chain:
+                        try:
+                            # 优先用 chain_result (当前主干通用写法)
+                            await event.send(event.chain_result(chain))
+                        except Exception as e:
+                            logger.warning(f"发送欢迎词富文本失败: {e}, 回退为纯文本")
+                            await event.send(event.plain_result(welcome))
+                    else:
+                        await event.send(event.plain_result(welcome))
             # 进群禁言
             join_ban_time = await self.db.get(gid, "join_ban_time")
             if join_ban_time > 0:
