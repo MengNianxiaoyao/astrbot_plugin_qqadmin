@@ -1,16 +1,14 @@
 
 <div align="center">
 
-![:name](https://count.getloli.com/@astrbot_plugin_QQAdmin?name=astrbot_plugin_QQAdmin&theme=minecraft&padding=6&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
-
-# astrbot_plugin_qqadmin
+# Astrbot Plugin QQAdmin
 
 _✨ QQ群管插件 ✨_  
 
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-4.0%2B-orange.svg)](https://github.com/Soulter/AstrBot)
-[![GitHub](https://img.shields.io/badge/作者-Zhalslar-blue)](https://github.com/Zhalslar)
+[![GitHub](https://img.shields.io/badge/Fork-Zhalslar-blue)](https://github.com/Zhalslar)
 
 </div>
 
@@ -27,12 +25,10 @@ _✨ QQ群管插件 ✨_
 
 ## ⌨️ 使用说明
 
-群管功能丰富，指令繁多，可以发送“/群管帮助”命令来查看具体用法。
-
 ### 群管插件命令表
 
 群管功能丰富，指令繁多，可以装个[帮助插件](https://github.com/bylkuse/astrbot_plugin_help_typst)，发送'helps'命令来查看具体用法。
-部分命令已注册为LLM工具，可利用LLM工具进行调用。其余命令考虑到实际用途未进行暂未注册。
+部分命令已注册为LLM工具，可利用LLM工具进行调用。其余命令考虑到实际用途未进行注册。
 
 | 指令格式 | 说明 | LLM工具 |
 |----------|------|:------:|
@@ -69,6 +65,9 @@ _✨ QQ群管插件 ✨_
 | 未命中驳回 开/关 | 设置是否拒绝未命中白词的进群申请 | ❌ |
 | 进群等级 <等级> | 设置进群等级门槛 | ❌ |
 | 进群次数 <次数> | 设置最大进群尝试次数 | ❌ |
+| 全局白名单 +QQ号 / -QQ号 | 添加或移除全局白名单 | ❌ |
+| 全局黑名单 +QQ号 / -QQ号 | 添加或移除全局黑名单 | ❌ |
+| 进群白名单 +QQ号 / -QQ号 | 添加或移除进群白名单 | ❌ |
 | 进群黑名单 +QQ号 / -QQ号 | 添加或移除进群黑名单 | ❌ |
 | 进群禁言 <秒数> | 设置新进成员的禁言时长，0表示不启用 | ❌ |
 | 进群欢迎 开/关 | 开启或关闭进群欢迎消息 | ❌ |
@@ -93,6 +92,8 @@ _✨ QQ群管插件 ✨_
 
 在Astrbot插件页面，点击插件logo图进入详情页面，在插件行为下点击页面1中的“打开”，即可进入群管插件的前端配置面板。
 
+#### 群配置
+
 - 左侧为群列表，支持按群名或群号搜索，也可以手动同步最新群列表。
 - 右侧为当前选中群的配置表单，顶部显示当前群名称，下方直接展示可编辑配置项。
 - “默认群”就是全局默认模板。新群或未单独配置的群，会优先继承默认群配置。
@@ -105,18 +106,16 @@ _✨ QQ群管插件 ✨_
 - 如果某个群在实时列表中显示为 0 人，插件会视为该群已失效，并自动清理对应的缓存与配置数据。
 - 目前面板右上角提供独立的浅色 / 深色 / 自动主题切换按钮，后续可在框架支持后再进一步与 AstrBot 主题联动。
 
+#### 全局配置
+
+- 白名单，将`使用全局白名单`配置开启后，会替换进群白名单。
+- 黑名单，将`使用全局黑名单`配置开启后，会替换进群黑名单。
+
 ### 配置思路
 
 - 先把通用规则配置在“默认群”中，作为全局模板。
 - 仅对少数特殊群关闭“跟随默认配置”，再按需覆盖个别设置。
 - 大多数群如果保持跟随默认配置，后期维护会轻松很多。
-
-
-## 📌 注意事项
-
-- 本插件目前仅测试了napcat协议端，其他协议端可能会存在一些不兼容问题（以具体情况为准）
-- 想第一时间得到反馈的可以来作者的插件反馈群（QQ群）：460973561（不点star不给进）
-- 群管插件目前功能已基本稳定，建议非必要不更新
 
 ## 👥 贡献指南
 

@@ -1,11 +1,11 @@
-import os
+import re
 from datetime import datetime
 from pathlib import Path
 
+import anyio
 from aiohttp import ClientSession
-
 from astrbot import logger
-from astrbot.core.message.components import At, BaseMessageComponent, Image, Reply
+from astrbot.core.message.components import At, BaseMessageComponent, Image, Plain, Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
@@ -21,12 +21,7 @@ async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
     # 在群里就先试群资料，任何异常或空结果都跳过
     if group_id.isdigit():
         try:
-            info = (
-                await client.get_group_member_info(
-                    group_id=int(group_id), user_id=user_id
-                )
-                or {}
-            )
+            info = await client.get_group_member_info(group_id=int(group_id), user_id=user_id) or {}
         except Exception:
             pass
 
@@ -43,11 +38,7 @@ async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
 
 def get_ats(event: AiocqhttpMessageEvent) -> list[str]:
     """获取被at者们的id列表"""
-    return [
-        str(seg.qq)
-        for seg in event.get_messages()
-        if (isinstance(seg, At) and str(seg.qq) != event.get_self_id())
-    ]
+    return [str(seg.qq) for seg in event.get_messages() if (isinstance(seg, At) and str(seg.qq) != event.get_self_id())]
 
 
 def get_replyer_id(event: AiocqhttpMessageEvent) -> str | None:
@@ -62,13 +53,31 @@ def get_reply_message_str(event: AiocqhttpMessageEvent) -> str | None:
     获取被引用的消息解析后的纯文本消息字符串。
     """
     return next(
-        (
-            seg.message_str
-            for seg in event.message_obj.message
-            if isinstance(seg, Reply)
-        ),
+        (seg.message_str for seg in event.message_obj.message if isinstance(seg, Reply)),
         "",
     )
+
+
+def get_replyer_message_id(event: AiocqhttpMessageEvent) -> str | None:
+    """获取被引用消息的消息ID，用于精确匹配进群申请通知等引用消息。"""
+    for seg in event.get_messages():
+        if isinstance(seg, Reply) and getattr(seg, "message_id", None):
+            return str(seg.message_id)
+    return None
+
+
+def extract_message_id(result) -> str | None:
+    """从 send 类接口的返回结果中提取消息ID（兼容 dict / 带属性对象 / None 多种形态）。"""
+    if result is None:
+        return None
+    if isinstance(result, dict):
+        data = result.get("data")
+        if isinstance(data, dict) and data.get("message_id"):
+            return str(data["message_id"])
+        if result.get("message_id"):
+            return str(result["message_id"])
+    mid = getattr(result, "message_id", None)
+    return str(mid) if mid else None
 
 
 def format_time(timestamp):
@@ -77,23 +86,31 @@ def format_time(timestamp):
 
 
 async def download_file(url: str, save_path: Path) -> Path | None:
-    """下载文件并保存到本地"""
-    url = url.replace("https://", "http://")
-    try:
-        async with ClientSession() as client:
-            response = await client.get(url)
-            file = await response.read()
+    """下载文件并保存到本地。优先使用原协议，失败后回退到另一种协议（http/https 互转）。"""
+    candidates = [url]
+    if url.startswith("https://"):
+        candidates.append("http://" + url[len("https://") :])
+    elif url.startswith("http://"):
+        candidates.append("https://" + url[len("http://") :])
 
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    for candidate in candidates:
+        try:
+            async with ClientSession() as client:
+                response = await client.get(candidate)
+                response.raise_for_status()
+                file = await response.read()
 
-            with open(save_path, "wb") as img_file:
-                img_file.write(file)
+                await anyio.Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"文件已保存: {save_path}")
-            return save_path
-    except Exception as e:
-        logger.error(f"文件下载并保存失败: {e}")
-        return None
+                async with await anyio.open_file(save_path, "wb") as img_file:
+                    await img_file.write(file)
+
+                logger.info(f"文件已保存: {save_path}")
+                return save_path
+        except Exception as e:
+            logger.error(f"文件下载失败({candidate}): {e}")
+
+    return None
 
 
 def extract_image_url(chain: list[BaseMessageComponent]) -> str | None:
@@ -118,3 +135,91 @@ def parse_bool(mode: str | bool | None, default: bool = False):
             return False
         case _:
             return default
+
+
+# 匹配 [CQ:type] 或 [CQ:type,param=val,...]; param 部分可选,兼容无参 CQ
+_CQ_PATTERN = re.compile(r"\[CQ:(\w+)(?:,([^\]]*))?\]")
+
+# 允许的本地图片根目录由调用方传入时校验;此处仅作基础存在性校验,
+# 真正的越权防护由配置层(仅群管可改欢迎词)承担,不在此处强制白名单。
+
+
+def parse_cq_to_chain(text: str) -> list:
+    """将含 CQ 码的文本解析为 AstrBot 消息组件列表.
+
+    支持:
+      - [CQ:at,qq=123] -> At
+      - [CQ:image,file=.../url=...] -> Image (http(s) 走 fromURL, 本地走 fromFileSystem)
+    未识别的 CQ 类型、参数缺失/非法时保留为 Plain 原文,避免静默丢弃.
+    本地图片不存在时记录日志并插入通用占位 Plain,不暴露文件系统路径.
+    """
+    if not text:
+        return []
+
+    chain: list = []
+    last_pos = 0
+
+    for match in _CQ_PATTERN.finditer(text):
+        # 前缀纯文本
+        plain_text = text[last_pos : match.start()]
+        if plain_text:
+            chain.append(Plain(plain_text))
+
+        raw = match.group(0)
+        cq_type = match.group(1)
+        params_str = match.group(2) or ""
+
+        params: dict[str, str] = {}
+        if params_str:
+            for item in params_str.split(","):
+                if "=" in item:
+                    k, v = item.split("=", 1)
+                    # CQ 码中 &amp; 为 & 的转义
+                    v = v.replace("&amp;", "&")
+                    params[k.strip()] = v.strip()
+
+        if cq_type == "at":
+            qq = (params.get("qq") or "").strip()
+            if qq and qq.isdigit():
+                chain.append(At(qq=qq, name=""))
+            else:
+                # qq 缺失或非法:保留原文便于发现配置问题
+                logger.warning(f"CQ at 缺少合法 qq 参数,保留原文: {raw}")
+                chain.append(Plain(raw))
+        elif cq_type == "image":
+            file_path = params.get("file") or params.get("url") or ""
+            file_path = file_path.strip()
+            if not file_path:
+                logger.warning(f"CQ image 缺少 file/url 参数,保留原文: {raw}")
+                chain.append(Plain(raw))
+            elif file_path.startswith("http://") or file_path.startswith("https://"):
+                try:
+                    chain.append(Image.fromURL(file_path))
+                except Exception as e:
+                    logger.warning(f"CQ image URL 解析失败: {e}, 原文: {raw}")
+                    chain.append(Plain(raw))
+            else:
+                # 本地路径:支持 file= 传入的绝对/相对路径
+                # 兼容 Windows 路径中可能含的转义,此处不再二次转义
+                p = Path(file_path)
+                try:
+                    if p.exists() and p.is_file():
+                        chain.append(Image.fromFileSystem(str(p.resolve())))
+                    else:
+                        logger.warning(f"CQ image 本地文件不存在,已省略: {raw}")
+                        chain.append(Plain("[图片加载失败]"))
+                except Exception as e:
+                    logger.warning(f"CQ image 本地文件处理失败: {e}")
+                    chain.append(Plain("[图片加载失败]"))
+        else:
+            # 未知类型:保留原文,避免丢弃未来扩展的 CQ
+            chain.append(Plain(raw))
+
+        last_pos = match.end()
+
+    # 尾段纯文本
+    rest = text[last_pos:]
+    if rest:
+        chain.append(Plain(rest))
+
+    return chain

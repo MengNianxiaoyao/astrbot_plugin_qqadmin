@@ -9,7 +9,7 @@ from typing import Any
 from astrbot.api import logger
 
 from .config import PluginConfig
-from .data import QQAdminDB
+from .data import QQAdminDB, QQAdminGlobalList
 from .group_info_cache import QQGroupInfoCache
 from .permission import perm_manager
 from .utils import parse_bool
@@ -19,10 +19,11 @@ FOLLOW_DEFAULT_KEY = "follow_default"
 
 
 class QQAdminPageService:
-    def __init__(self, cfg: PluginConfig, db: QQAdminDB, group_cache: QQGroupInfoCache):
+    def __init__(self, cfg: PluginConfig, db: QQAdminDB, group_cache: QQGroupInfoCache, global_list: QQAdminGlobalList | None = None):
         self.cfg = cfg
         self.db = db
         self.group_cache = group_cache
+        self.global_list = global_list or QQAdminGlobalList(cfg.data_dir)
         self.schema = self._load_schema(cfg.plugin_dir / "_conf_schema.json")
 
     @property
@@ -65,12 +66,8 @@ class QQAdminPageService:
         groups = await self.group_cache.list_groups(force=force)
         return await self._build_group_entries(groups)
 
-    async def list_groups_with_bot_roles(
-        self, force: bool = False
-    ) -> list[dict[str, Any]]:
-        groups = await self.group_cache.list_groups_with_bot_roles(
-            force_bot_roles=force
-        )
+    async def list_groups_with_bot_roles(self, force: bool = False) -> list[dict[str, Any]]:
+        groups = await self.group_cache.list_groups_with_bot_roles(force_bot_roles=force)
         return await self._build_group_entries(groups)
 
     async def _build_group_entries(
@@ -121,9 +118,7 @@ class QQAdminPageService:
             "is_default_group": False,
         }
 
-    async def update_group_config(
-        self, group_id: str, payload: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def update_group_config(self, group_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         if str(group_id).strip() == DEFAULT_GROUP_ID:
             return await self.update_default_group_config(payload)
 
@@ -141,7 +136,25 @@ class QQAdminPageService:
         else:
             await self.db.replace_group(group_id, sanitized)
         self.group_cache.invalidate(group_id)
-        return await self.get_group_config(group_id)
+
+        # 返回轻量结果：优先用列表缓存摘要，避免保存后又拉一次详情
+        group_info = self.group_cache.get_cached_group(group_id)
+        if group_info is None:
+            group_info = await self.group_cache.get_group(group_id, force=False)
+        if self._should_delete_group(group_info):
+            await self._delete_group_data(group_id)
+            raise ValueError(f"group {group_id} no longer exists and has been deleted")
+
+        follow_default = self.db.is_group_follow_default(group_id)
+        return {
+            "group_id": group_id,
+            "group_info": group_info,
+            "config": {
+                FOLLOW_DEFAULT_KEY: follow_default,
+                **self.db.get_group_snapshot(group_id),
+            },
+            "is_default_group": False,
+        }
 
     async def reset_group_config(self, group_id: str) -> dict[str, Any]:
         if str(group_id).strip() == DEFAULT_GROUP_ID:
@@ -187,6 +200,22 @@ class QQAdminPageService:
         self.group_cache.invalidate()
         return self.get_default_group_config()
 
+    async def get_global_lists(self) -> dict[str, list[str]]:
+        return {
+            "allow": list(self.global_list.allow),
+            "block": list(self.global_list.block),
+        }
+
+    async def update_global_list(self, list_type: str, items: list[str]) -> list[str]:
+        clean = [str(i).strip() for i in items if str(i).strip()]
+        if list_type == "allow":
+            self.global_list.set_allow(clean)
+            return list(self.global_list.allow)
+        if list_type == "block":
+            self.global_list.set_block(clean)
+            return list(self.global_list.block)
+        raise ValueError("list_type must be 'allow' or 'block'")
+
     @staticmethod
     def _load_schema(schema_path: Path) -> dict[str, Any]:
         try:
@@ -220,9 +249,7 @@ class QQAdminPageService:
 
     def _apply_group_level_updates(self, updated: dict[str, Any]) -> None:
         default_fields = self.schema.get("default", {}).get("items", {})
-        default_updates = {
-            key: value for key, value in updated.items() if key in default_fields
-        }
+        default_updates = {key: value for key, value in updated.items() if key in default_fields}
         self._merge_dict(self.cfg.default, default_updates)
 
         if "admin_audit" in updated:
@@ -250,9 +277,7 @@ class QQAdminPageService:
             "level_threshold",
             "perms",
         ]
-        return {
-            key: copy.deepcopy(self.schema[key]) for key in keys if key in self.schema
-        }
+        return {key: copy.deepcopy(self.schema[key]) for key in keys if key in self.schema}
 
     @staticmethod
     def _merge_dict(target: dict[str, Any], source: dict[str, Any] | None) -> None:
@@ -277,9 +302,7 @@ class QQAdminPageService:
             for key, child_schema in items.items():
                 child_current = current_map.get(key, child_schema.get("default"))
                 child_value = payload[key] if key in payload else child_current
-                result[key] = self._sanitize_value(
-                    child_value, child_schema, child_current
-                )
+                result[key] = self._sanitize_value(child_value, child_schema, child_current)
             return result
 
         if field_type == "bool":

@@ -2,20 +2,11 @@ function pathJoin(prefix, key) {
   return prefix ? `${prefix}.${key}` : key;
 }
 
-function getCollapsedObjectPaths(options = {}) {
-  if (options.collapsedObjectPaths instanceof Set) {
-    return options.collapsedObjectPaths;
-  }
-  if (Array.isArray(options.collapsedObjectPaths)) {
-    return new Set(options.collapsedObjectPaths);
-  }
-  return new Set();
-}
-
 function normalizeOptions(options = {}) {
+  const raw = options.collapsedObjectPaths;
   return {
     ...options,
-    collapsedObjectPaths: getCollapsedObjectPaths(options),
+    collapsedObjectPaths: raw instanceof Set ? raw : new Set(raw),
   };
 }
 
@@ -126,8 +117,9 @@ function buildField(path, key, schema, value, options = {}) {
     if (options.singleColumn) {
       grid.classList.add("single-column");
     }
+    const fragment = document.createDocumentFragment();
     Object.entries(schema.items || {}).forEach(([childKey, childSchema]) => {
-      grid.appendChild(
+      fragment.appendChild(
         buildField(
           pathJoin(path, childKey),
           childKey,
@@ -137,6 +129,7 @@ function buildField(path, key, schema, value, options = {}) {
         )
       );
     });
+    grid.appendChild(fragment);
     bodyHost.appendChild(grid);
     return wrapper;
   }
@@ -239,8 +232,9 @@ export function renderSchemaFields(root, schema, values, options = {}) {
     grid.classList.add("single-column");
   }
 
+  const fragment = document.createDocumentFragment();
   Object.entries(schema).forEach(([key, fieldSchema]) => {
-    grid.appendChild(
+    fragment.appendChild(
       buildField(
         key,
         key,
@@ -250,12 +244,15 @@ export function renderSchemaFields(root, schema, values, options = {}) {
       )
     );
   });
+  grid.appendChild(fragment);
 
   root.appendChild(grid);
 }
 
 export function collectFormData(root) {
   const payload = {};
+  // 收集所有字段（含禁用字段），使 payload 与页面展示的配置完全一致（所见即所得），
+  // 不依赖后端根据 missing 字段回填来还原配置，从而与禁用态解耦。
   root.querySelectorAll("[data-path]").forEach((node) => {
     const { path, type } = node.dataset;
     let value;
@@ -263,7 +260,8 @@ export function collectFormData(root) {
     if (type === "bool") {
       value = node.checked;
     } else if (type === "int") {
-      value = Number(node.value || 0);
+      const parsed = Number(node.value);
+      value = Number.isNaN(parsed) ? 0 : parsed;
     } else if (type === "list") {
       value = node.value
         .split(/\n+/)

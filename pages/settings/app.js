@@ -7,14 +7,9 @@ import {
   renderGroupCards,
   renderGroupDetailHeader,
 } from "./group-view.js";
+import { createThemeController } from "./theme.js";
 
 const bridge = window.AstrBotPluginPage;
-const root = document.documentElement;
-const themeMediaQuery =
-  typeof window.matchMedia === "function"
-    ? window.matchMedia("(prefers-color-scheme: dark)")
-    : null;
-const THEME_STORAGE_KEY = "qqadmin-page-theme-mode";
 const DEFAULT_GROUP_ID = "__default__";
 const COLLAPSED_GROUP_OBJECT_PATHS = new Set(["perms"]);
 const FOLLOW_DEFAULT_KEY = "follow_default";
@@ -24,9 +19,9 @@ let bootstrapData = null;
 let currentGroup = null;
 let allGroups = [];
 let detachContextHandler = null;
-let detachSystemThemeHandler = null;
-let themePreference = loadThemePreference();
+let themeController = null;
 let groupRoleSyncToken = 0;
+let formDirty = false;
 
 const els = {
   groupForm: document.getElementById("groupForm"),
@@ -39,110 +34,24 @@ const els = {
   refreshGroupsBtn: document.getElementById("refreshGroupsBtn"),
   saveGroupBtn: document.getElementById("saveGroupBtn"),
   resetGroupBtn: document.getElementById("resetGroupBtn"),
+  globalListPanel: document.getElementById("globalListPanel"),
+  globalListDisplay: document.getElementById("globalListDisplay"),
+  globalListBatchInput: document.getElementById("globalListBatchInput"),
+  overwriteGlobalListBtn: document.getElementById("overwriteGlobalListBtn"),
+  appendGlobalListBtn: document.getElementById("appendGlobalListBtn"),
+  groupActions: document.getElementById("groupActions"),
+  groupListPanel: document.getElementById("groupListPanel"),
+  workspaceGrid: document.querySelector(".workspace-grid"),
+  viewTabs: document.querySelectorAll(".view-tab"),
+  globalListTabs: document.querySelectorAll(".global-list-tab"),
 };
 
-function loadThemePreference() {
-  try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark" || stored === "auto") {
-      return stored;
-    }
-  } catch {}
-  return "auto";
-}
-
-function saveThemePreference() {
-  try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, themePreference);
-  } catch {}
-}
-
-function getThemeButtonLabel() {
-  if (themePreference === "dark") {
-    return "主题：深色";
-  }
-  if (themePreference === "light") {
-    return "主题：浅色";
-  }
-  return "主题：自动";
-}
+let currentGlobalType = "allow";
+let globalListData = { allow: [], block: [] };
 
 function updateThemeButton() {
-  if (els.toggleThemeBtn) {
-    els.toggleThemeBtn.textContent = getThemeButtonLabel();
-  }
-}
-
-function getBridgeThemeMode(context) {
-  if (context?.theme === "dark" || context?.theme === "light") {
-    return context.theme;
-  }
-  return null;
-}
-
-function getSystemThemeMode() {
-  return themeMediaQuery?.matches ? "dark" : "light";
-}
-
-function resolveThemeMode(context) {
-  if (themePreference === "dark" || themePreference === "light") {
-    return themePreference;
-  }
-
-  const bridgeThemeMode = getBridgeThemeMode(context);
-  if (bridgeThemeMode) {
-    return bridgeThemeMode;
-  }
-
-  return getSystemThemeMode();
-}
-
-function applyThemeMode(themeMode) {
-  root.dataset.theme = themeMode;
-  root.style.colorScheme = themeMode;
-}
-
-function syncThemeFromContext(context) {
-  applyThemeMode(resolveThemeMode(context));
-  updateThemeButton();
-}
-
-function cycleThemePreference() {
-  if (themePreference === "auto") {
-    themePreference = "dark";
-  } else if (themePreference === "dark") {
-    themePreference = "light";
-  } else {
-    themePreference = "auto";
-  }
-  saveThemePreference();
-  syncThemeFromContext(bridge?.getContext?.());
-}
-
-function bindSystemTheme() {
-  if (!themeMediaQuery) {
-    return;
-  }
-
-  const handleThemeChange = () => {
-    if (themePreference === "auto") {
-      applyThemeMode(resolveThemeMode(bridge?.getContext?.()));
-    }
-  };
-
-  if (typeof themeMediaQuery.addEventListener === "function") {
-    themeMediaQuery.addEventListener("change", handleThemeChange);
-    detachSystemThemeHandler = () => {
-      themeMediaQuery.removeEventListener("change", handleThemeChange);
-    };
-    return;
-  }
-
-  if (typeof themeMediaQuery.addListener === "function") {
-    themeMediaQuery.addListener(handleThemeChange);
-    detachSystemThemeHandler = () => {
-      themeMediaQuery.removeListener(handleThemeChange);
-    };
+  if (els.toggleThemeBtn && themeController) {
+    els.toggleThemeBtn.textContent = themeController.getButtonLabel();
   }
 }
 
@@ -154,36 +63,26 @@ function showToast(message, type = "success") {
   setTimeout(() => node.remove(), 2600);
 }
 
-function getDefaultGroupConfigValues() {
-  const groups = Array.isArray(bootstrapData?.groups) ? bootstrapData.groups : [];
-  const defaultGroup = groups.find((group) => group.group_id === DEFAULT_GROUP_ID);
-  if (defaultGroup?.config) {
-    return defaultGroup.config;
-  }
-  if (currentGroup?.group_id === DEFAULT_GROUP_ID) {
-    return currentGroup?.config || {};
-  }
-  return {};
-}
-
 function buildGroupFormValues(groupPayload) {
-  const defaultValues = getDefaultGroupConfigValues();
   const currentValues = groupPayload?.config || {};
   const followDefault = Boolean(currentValues[FOLLOW_DEFAULT_KEY]);
-  const mergedValues = followDefault && !groupPayload?.is_default_group
-    ? {
-        ...defaultValues,
-        [FOLLOW_DEFAULT_KEY]: true,
-      }
-    : currentValues;
-  return mergedValues;
+  if (!followDefault || groupPayload?.is_default_group) {
+    return currentValues;
+  }
+  const defaultGroup = bootstrapData?.groups?.find(
+    (g) => g.group_id === DEFAULT_GROUP_ID
+  );
+  return {
+    ...(defaultGroup?.config || {}),
+    [FOLLOW_DEFAULT_KEY]: true,
+  };
 }
 
 function isGroupFieldDisabled(path) {
   if (!currentGroup || currentGroup.is_default_group) {
     return false;
   }
-  if (!Boolean(currentGroup.config?.[FOLLOW_DEFAULT_KEY])) {
+  if (!currentGroup.config?.[FOLLOW_DEFAULT_KEY]) {
     return false;
   }
   return path !== FOLLOW_DEFAULT_KEY;
@@ -204,37 +103,29 @@ function updateGroupActionState() {
     : "保存当前项配置";
 }
 
-function normalizeGroups(groups) {
-  return Array.isArray(groups) ? groups : [];
-}
-
 function applyGroupList(groups) {
-  allGroups = normalizeGroups(groups);
+  allGroups = Array.isArray(groups) ? groups : [];
   bootstrapData.groups = allGroups;
   filterAndRenderGroups();
 }
 
 function scheduleGroupRoleSync(options = {}) {
   const requestToken = ++groupRoleSyncToken;
-  void syncGroupRoles(requestToken, options);
-}
-
-function filterGroups() {
-  const keyword = String(els.groupSearchInput.value || "")
-    .trim()
-    .toLowerCase();
-  if (!keyword) {
-    return allGroups;
-  }
-  return allGroups.filter((group) => {
-    const groupId = String(group.group_id || "").toLowerCase();
-    const groupName = String(group.group_name || "").toLowerCase();
-    return groupId.includes(keyword) || groupName.includes(keyword);
-  });
+  syncGroupRoles(requestToken, options);
 }
 
 function filterAndRenderGroups() {
-  const groups = filterGroups();
+  const keyword = String(els.groupSearchInput.value || "")
+    .trim()
+    .toLowerCase();
+  const groups = keyword
+    ? allGroups.filter((group) => {
+        const groupId = String(group.group_id || "").toLowerCase();
+        const groupName = String(group.group_name || "").toLowerCase();
+        return groupId.includes(keyword) || groupName.includes(keyword);
+      })
+    : allGroups;
+
   els.groupListCount.textContent = `${groups.length} 个群`;
   renderGroupCards({
     root: els.groupList,
@@ -247,6 +138,29 @@ function filterAndRenderGroups() {
         showToast(error.message, "error");
       }
     },
+  });
+}
+
+function markFormDirty() {
+  formDirty = true;
+}
+
+function updateActiveGroupCard() {
+  const activeId = String(currentGroup?.group_id || "");
+  els.groupList.querySelectorAll(".group-card").forEach((card) => {
+    card.classList.toggle("is-active", card.dataset.groupId === activeId);
+  });
+}
+
+function setFieldsDisabled(disabled) {
+  els.groupForm.querySelectorAll("[data-path]").forEach((node) => {
+    if (node.dataset.path === FOLLOW_DEFAULT_KEY) {
+      return;
+    }
+    node.disabled = disabled;
+  });
+  els.groupForm.querySelectorAll(".field, .form-object").forEach((field) => {
+    field.classList.toggle("is-disabled", disabled);
   });
 }
 
@@ -266,7 +180,7 @@ function renderGroupForm(groupPayload) {
   );
   bindFollowDefaultToggle();
   updateGroupActionState();
-  filterAndRenderGroups();
+  updateActiveGroupCard();
 }
 
 async function loadBootstrapData() {
@@ -309,6 +223,7 @@ async function loadGroupConfig(groupId, force = false) {
     force: force ? "1" : "0",
   });
   renderGroupForm(data);
+  formDirty = false;
 }
 
 function bindFollowDefaultToggle() {
@@ -323,8 +238,12 @@ function bindFollowDefaultToggle() {
     if (!currentGroup?.config) {
       return;
     }
-    currentGroup.config[FOLLOW_DEFAULT_KEY] = Boolean(followDefaultInput.checked);
-    renderGroupForm(currentGroup);
+    const following = Boolean(followDefaultInput.checked);
+    currentGroup.config[FOLLOW_DEFAULT_KEY] = following;
+    // 轻量切换：仅翻转禁用态，不重建整个表单
+    setFieldsDisabled(following);
+    updateGroupActionState();
+    updateActiveGroupCard();
   });
 }
 
@@ -351,6 +270,7 @@ async function persistGroupConfig(groupId, options = {}) {
   if (rerenderCurrent) {
     renderGroupForm(data);
   }
+  formDirty = false;
   if (refreshList) {
     await refreshGroups();
   }
@@ -364,6 +284,9 @@ async function saveCurrentGroupBeforeSwitch(nextGroupId) {
   const currentGroupId = String(currentGroup?.group_id || "").trim();
   const targetGroupId = String(nextGroupId || "").trim();
   if (!currentGroupId || !targetGroupId || currentGroupId === targetGroupId) {
+    return;
+  }
+  if (!formDirty) {
     return;
   }
   if (!els.groupForm.querySelector("[data-path]")) {
@@ -402,13 +325,199 @@ async function resetGroupConfig() {
   }
   const data = await api.safePost("settings/group/reset", { group_id: target });
   renderGroupForm(data);
+  formDirty = false;
   await refreshGroups();
   showToast(`群 ${target} 已恢复默认群配置`);
 }
 
+function switchView(view) {
+  const isGlobal = view === "global";
+
+  els.workspaceGrid.classList.toggle("global-list-mode", isGlobal);
+  els.globalListPanel.classList.toggle("is-hidden", !isGlobal);
+  els.groupForm.style.display = isGlobal ? "none" : "";
+  els.groupActions.style.display = isGlobal ? "none" : "";
+  els.currentGroupName.textContent = isGlobal
+    ? "全局配置"
+    : currentGroup?.group_info?.group_name || "未选择群";
+
+  els.viewTabs.forEach((tab) => {
+    const active = tab.dataset.view === view;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+  });
+
+  if (isGlobal) {
+    loadGlobalLists();
+  }
+}
+
+async function loadGlobalLists() {
+  try {
+    const data = await api.safeGet("settings/global-list");
+    globalListData = data;
+    renderGlobalList();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function renderGlobalList() {
+  const items = globalListData[currentGlobalType] || [];
+  const container = els.globalListDisplay;
+  container.innerHTML = "";
+
+  const countBar = document.createElement("div");
+  countBar.className = "global-list-count";
+  countBar.textContent = `共 ${items.length} 个`;
+  container.appendChild(countBar);
+
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "global-list-empty";
+    empty.textContent = "当前名单为空。";
+    container.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement("div");
+  list.className = "global-list-rows";
+
+  items.forEach((uid, index) => {
+    const row = document.createElement("div");
+    row.className = "global-list-row";
+
+    const label = document.createElement("span");
+    label.className = "global-list-row-label";
+    label.textContent = uid;
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "global-list-row-del";
+    del.textContent = "删除";
+    del.addEventListener("click", async () => {
+      const ok = await showConfirm(`确定删除 ${uid} 吗？`);
+      if (!ok) return;
+      globalListData[currentGlobalType] = items.filter((_, i) => i !== index);
+      renderGlobalList();
+    });
+
+    row.appendChild(label);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+
+  container.appendChild(list);
+}
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve(false);
+      }
+    });
+
+    const box = document.createElement("div");
+    box.className = "confirm-box";
+
+    const msg = document.createElement("p");
+    msg.className = "confirm-message";
+    msg.textContent = message;
+
+    const actions = document.createElement("div");
+    actions.className = "confirm-actions";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "ghost-button";
+    cancelBtn.textContent = "取消";
+    cancelBtn.addEventListener("click", () => {
+      overlay.remove();
+      resolve(false);
+    });
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.className = "primary-button";
+    confirmBtn.textContent = "确定";
+    confirmBtn.addEventListener("click", () => {
+      overlay.remove();
+      resolve(true);
+    });
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    box.appendChild(msg);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  });
+}
+
+function getBatchItems() {
+  const text = els.globalListBatchInput.value.trim();
+  if (!text) return [];
+  const items = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  return [...new Set(items)];
+}
+
+function clearBatchInput() {
+  els.globalListBatchInput.value = "";
+}
+
+async function overwriteGlobalList() {
+  const items = getBatchItems();
+  const ok = await showConfirm(`确定覆写全局${currentGlobalType === "allow" ? "白名单" : "黑名单"}吗？`);
+  if (!ok) return;
+  try {
+    await api.safePost("settings/global-list", {
+      type: currentGlobalType,
+      items,
+    });
+    globalListData[currentGlobalType] = items;
+    clearBatchInput();
+    renderGlobalList();
+    showToast(`全局${currentGlobalType === "allow" ? "白名单" : "黑名单"}已覆写`);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function appendGlobalList() {
+  const batchItems = getBatchItems();
+  if (!batchItems.length) {
+    showToast("输入框为空", "error");
+    return;
+  }
+  const existingItems = globalListData[currentGlobalType] || [];
+  const existingSet = new Set(existingItems);
+  const newItems = batchItems.filter((item) => !existingSet.has(item));
+  if (!newItems.length) {
+    showToast("所有数据均已存在，无需添加", "error");
+    return;
+  }
+  const merged = [...existingItems, ...newItems];
+  try {
+    await api.safePost("settings/global-list", {
+      type: currentGlobalType,
+      items: merged,
+    });
+    globalListData[currentGlobalType] = merged;
+    clearBatchInput();
+    renderGlobalList();
+    const skipped = batchItems.length - newItems.length;
+    const msg = skipped > 0 ? `已添加 ${newItems.length} 个（${skipped} 个重复已跳过）` : `已添加 ${newItems.length} 个`;
+    showToast(msg);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
 function bindEvents() {
   els.toggleThemeBtn.addEventListener("click", () => {
-    cycleThemePreference();
+    themeController?.cyclePreference();
   });
 
   els.refreshGroupsBtn.addEventListener("click", async () => {
@@ -448,15 +557,58 @@ function bindEvents() {
     }
   });
 
+  let groupSearchTimer = null;
   els.groupSearchInput.addEventListener("input", () => {
-    filterAndRenderGroups();
+    clearTimeout(groupSearchTimer);
+    groupSearchTimer = setTimeout(filterAndRenderGroups, 150);
+  });
+
+  els.groupForm.addEventListener("input", markFormDirty);
+  els.groupForm.addEventListener("change", markFormDirty);
+
+  els.viewTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      switchView(tab.dataset.view);
+    });
+  });
+
+  els.globalListTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      els.globalListTabs.forEach((t) => {
+        const active = t === tab;
+        t.classList.toggle("is-active", active);
+        t.setAttribute("aria-selected", String(active));
+      });
+      currentGlobalType = tab.dataset.globalType;
+      renderGlobalList();
+    });
+  });
+
+  els.overwriteGlobalListBtn.addEventListener("click", async () => {
+    try {
+      await overwriteGlobalList();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
+  });
+
+  els.appendGlobalListBtn.addEventListener("click", async () => {
+    try {
+      await appendGlobalList();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
   });
 }
 
 async function init() {
-  bindSystemTheme();
+  themeController = createThemeController({
+    getContext: () => bridge?.getContext?.(),
+    onModeChange: updateThemeButton,
+  });
+  themeController.bind();
   updateThemeButton();
-  applyThemeMode(resolveThemeMode(null));
+  themeController.sync(null);
 
   if (!bridge) {
     return;
@@ -476,15 +628,15 @@ async function init() {
           setTimeout(() => reject(new Error("Bridge ready timeout")), 5000)
         ),
       ]);
-      syncThemeFromContext(context);
+      themeController.sync(context);
     }
 
     if (typeof bridge.onContext === "function") {
       detachContextHandler = bridge.onContext((context) => {
-        syncThemeFromContext(context);
+        themeController.sync(context);
       });
     } else {
-      syncThemeFromContext(bridge.getContext?.());
+      themeController.sync(bridge.getContext?.());
     }
 
     bindEvents();
@@ -499,7 +651,7 @@ async function init() {
 
 window.addEventListener("beforeunload", () => {
   detachContextHandler?.();
-  detachSystemThemeHandler?.();
+  themeController?.detach?.();
 });
 
 init();

@@ -21,25 +21,47 @@ class MemberHandle:
         self.plugin = plugin
 
     async def get_group_member_list(self, event: AiocqhttpMessageEvent):
-        """查看群友信息，人数太多时可能会处理失败"""
+        """查看群友信息。优先生成图片展示，图片失败时自动降级为分片文本。"""
         await event.send(event.plain_result("获取中..."))
         group_id = event.get_group_id()
-        members_data = await event.bot.get_group_member_list(group_id=int(group_id))
-        info_list = [
-            (
-                f"{format_time(member['join_time'])}："
-                f"【{member['level']}】"
-                f"{member['user_id']}-"
-                f"{member['nickname']}"
-            )
-            for member in members_data
-        ]
-        info_list.sort(key=lambda x: datetime.strptime(x.split("：")[0], "%Y-%m-%d"))
-        info_str = "进群时间：【等级】QQ-昵称\n\n"
-        info_str += "\n\n".join(info_list)
-        # TODO 做张好看的图片来展示
-        url = await self.plugin.text_to_image(info_str)
-        await event.send(event.image_result(url))
+        try:
+            members_data = await event.bot.get_group_member_list(group_id=int(group_id))
+        except Exception as e:
+            logger.error(f"获取群成员列表失败：{e}")
+            await event.send(event.plain_result(f"获取群成员信息失败：{e}"))
+            return
+
+        def _join_time(member):
+            try:
+                return int(member.get("join_time", 0) or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        info_lines = [f"{format_time(_join_time(m))}：【{m.get('level', 0)}】{m.get('user_id', '?')}-{m.get('nickname', '（无昵称）')}" for m in sorted(members_data, key=_join_time)]
+
+        if not info_lines:
+            await event.send(event.plain_result("群内暂无成员数据"))
+            return
+
+        header = "进群时间：【等级】QQ-昵称\n\n"
+        try:
+            url = await self.plugin.text_to_image(header + "\n\n".join(info_lines))
+            if not url:
+                raise RuntimeError("text_to_image 未返回图片地址")
+            await event.send(event.image_result(url))
+        except Exception as e:
+            logger.warning(f"生成群成员列表图片失败，回退为文本发送：{e}")
+            await self._send_text_fallback(event, header, info_lines)
+
+    async def _send_text_fallback(self, event: AiocqhttpMessageEvent, title: str, lines: list[str], chunk_size: int = 40):
+        """图片生成失败时，将长文本分片发送，避免单条消息超出平台长度限制。"""
+        total = len(lines)
+        if total <= chunk_size:
+            await event.send(event.plain_result(title + "\n" + "\n".join(lines)))
+            return
+        for start in range(0, total, chunk_size):
+            head = title if start == 0 else f"（续 {start + 1}-{min(start + chunk_size, total)}/{total}）"
+            await event.send(event.plain_result(f"{head}\n" + "\n".join(lines[start : start + chunk_size])))
 
     async def clear_group_member(
         self,
@@ -58,28 +80,35 @@ class MemberHandle:
             return
 
         threshold_ts = int(datetime.now().timestamp()) - inactive_days * 86400
-        clear_ids: list[int] = []
-        info_lines: list[str] = []
+        rows: list[tuple[int, int, str, str]] = []
 
         for member in members_data:  # type: ignore
-            last_sent = member.get("last_sent_time", 0)
-            level = int(member.get("level", 0))
+            try:
+                last_sent = int(member.get("last_sent_time", 0) or 0)
+            except (TypeError, ValueError):
+                last_sent = 0
+            try:
+                level = int(member.get("level", 0))
+            except (TypeError, ValueError):
+                level = 0
             user_id = member.get("user_id", "")
             nickname = member.get("nickname", "（无昵称）")
 
             if last_sent < threshold_ts and level < under_level:
-                clear_ids.append(user_id)
-                last_active_str = format_time(last_sent)
-                info_lines.append(
-                    f"- **{last_active_str}**｜**{level}**级｜`{user_id}` - {nickname}"
-                )
+                rows.append((last_sent, level, user_id, nickname))
 
-        if not clear_ids:
+        if not rows:
             await event.send(event.plain_result("无符合条件的群友"))
             return
 
-        # 按发言时间排序
-        info_lines.sort(key=lambda x: datetime.strptime(x.split("**")[1], "%Y-%m-%d"))
+        # 按发言时间排序（直接按时间戳排序，不再反解析格式化字符串）
+        rows.sort(key=lambda row: row[0])
+
+        clear_ids: list[int] = []
+        info_lines: list[str] = []
+        for last_sent, level, user_id, nickname in rows:
+            clear_ids.append(user_id)
+            info_lines.append(f"- **{format_time(last_sent)}**｜**{level}**级｜`{user_id}` - {nickname}")
 
         info_str = (
             f"### 共 **{len(clear_ids)}** 位群友 **{inactive_days}** 天内无发言，群等级低于 **{under_level}** 级\n\n"
@@ -87,15 +116,23 @@ class MemberHandle:
             + "\n\n### 请发送 **确认清理** 或 **取消清理** 来处理这些群友！"
         )
 
-        url = await self.plugin.text_to_image(info_str)
-        await event.send(event.image_result(url))
+        try:
+            url = await self.plugin.text_to_image(info_str)
+            if not url:
+                raise RuntimeError("text_to_image 未返回图片地址")
+            await event.send(event.image_result(url))
+        except Exception as e:
+            logger.warning(f"生成清理候选图片失败，回退为文本发送：{e}")
+            await self._send_text_fallback(
+                event,
+                f"共 {len(clear_ids)} 位群友符合清理条件（{inactive_days} 天内无发言且群等级低于 {under_level} 级），请发送「确认清理」或「取消清理」：",
+                info_lines,
+            )
 
         await event.send(event.chain_result([At(qq=cid) for cid in clear_ids]))
 
         @session_waiter(timeout=60)  # type: ignore
-        async def empty_mention_waiter(
-            controller: SessionController, event: AiocqhttpMessageEvent
-        ):
+        async def empty_mention_waiter(controller: SessionController, event: AiocqhttpMessageEvent):
             if group_id != event.get_group_id() or sender_id != event.get_sender_id():
                 return
 

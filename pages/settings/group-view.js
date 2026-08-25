@@ -35,9 +35,12 @@ export function renderGroupCards({
 
   root.classList.remove("empty-state");
 
+  const fragment = document.createDocumentFragment();
+
   groups.forEach((group) => {
     const card = document.createElement("article");
     card.className = "group-card";
+    card.dataset.groupId = String(group.group_id ?? "");
     if (group.group_id === currentGroupId) {
       card.classList.add("is-active");
     }
@@ -90,8 +93,10 @@ export function renderGroupCards({
       onSelect?.(group.group_id);
     });
 
-    root.appendChild(card);
+    fragment.appendChild(card);
   });
+
+  root.appendChild(fragment);
 }
 
 export function renderGroupDetailHeader(els, payload) {

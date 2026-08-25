@@ -1,13 +1,82 @@
 import asyncio
 import copy
 import json
+from pathlib import Path
 
 import aiosqlite
-
 from astrbot.api import logger
 
 from .config import PluginConfig
 from .utils import parse_bool
+
+
+class QQAdminGlobalList:
+    """全局白名单/黑名单，存储为 JSON 文件"""
+
+    def __init__(self, data_dir: Path):
+        data_dir.mkdir(parents=True, exist_ok=True)
+        self._allow_path = data_dir / "global_allow.json"
+        self._block_path = data_dir / "global_block.json"
+        self._allow: list[str] = []
+        self._block: list[str] = []
+        self._loaded = False
+
+    def load(self):
+        self._allow = self._load_json(self._allow_path)
+        self._block = self._load_json(self._block_path)
+        self._loaded = True
+
+    @staticmethod
+    def _load_json(path: Path) -> list[str]:
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                return data if isinstance(data, list) else []
+        except Exception:
+            pass
+        return []
+
+    @staticmethod
+    def _save_json(path: Path, data: list[str]):
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    @property
+    def allow(self) -> list[str]:
+        if not self._loaded:
+            self.load()
+        return self._allow
+
+    @property
+    def block(self) -> list[str]:
+        if not self._loaded:
+            self.load()
+        return self._block
+
+    def add_allow(self, uid: str):
+        if uid not in self._allow:
+            self._allow.append(uid)
+            self._save_json(self._allow_path, self._allow)
+
+    def remove_allow(self, uid: str):
+        self._allow = [i for i in self._allow if i != uid]
+        self._save_json(self._allow_path, self._allow)
+
+    def set_allow(self, ids: list[str]):
+        self._allow = list(dict.fromkeys(ids))
+        self._save_json(self._allow_path, self._allow)
+
+    def add_block(self, uid: str):
+        if uid not in self._block:
+            self._block.append(uid)
+            self._save_json(self._block_path, self._block)
+
+    def remove_block(self, uid: str):
+        self._block = [i for i in self._block if i != uid]
+        self._save_json(self._block_path, self._block)
+
+    def set_block(self, ids: list[str]):
+        self._block = list(dict.fromkeys(ids))
+        self._save_json(self._block_path, self._block)
 
 
 class QQAdminDB:
@@ -22,8 +91,10 @@ class QQAdminDB:
         "join_max_time": "进群尝试次数",
         "join_accept_words": "进群白词",
         "join_reject_words": "进群黑词",
+        "join_no_match_msg": "验证为空拒绝",
         "join_no_match_reject": "未中白词拒绝",
         "reject_word_block": "命中黑词拉黑",
+        "allow_ids": "进群白名单",
         "block_ids": "进群黑名单",
         "join_welcome": "进群欢迎词",
         "join_ban_time": "进群禁言时长",
@@ -33,6 +104,8 @@ class QQAdminDB:
         "custom_ban_words": "自定义违禁词",
         "word_ban_time": "禁词禁言时长",
         "spamming_ban_time": "刷屏禁言时长",
+        "use_global_allow": "使用全局白名单",
+        "use_global_block": "使用全局黑名单",
     }
 
     REVERSE_FIELD_MAP = {v: k for k, v in FIELD_MAP.items()}
@@ -98,11 +171,7 @@ class QQAdminDB:
     def _strip_meta_fields(self, data: dict | None) -> dict | None:
         if data is None:
             return None
-        return {
-            key: copy.deepcopy(value)
-            for key, value in data.items()
-            if key != self.FOLLOW_DEFAULT_MARKER
-        }
+        return {key: copy.deepcopy(value) for key, value in data.items() if key != self.FOLLOW_DEFAULT_MARKER}
 
     def _is_follow_default_data(self, data: dict | None) -> bool:
         if data is None:
@@ -136,9 +205,7 @@ class QQAdminDB:
     async def ensure_group(self, gid: str):
         """确保存在群配置，若没有则按 default_cfg 初始化"""
         if gid not in self._cache or self._is_follow_default_data(self._cache.get(gid)):
-            self._cache[gid] = self._build_explicit_group_record(
-                self.get_group_snapshot(gid)
-            )
+            self._cache[gid] = self._build_explicit_group_record(self.get_group_snapshot(gid))
             await self._save_to_db(gid, self._cache[gid])
 
     def list_group_ids(self) -> list[str]:

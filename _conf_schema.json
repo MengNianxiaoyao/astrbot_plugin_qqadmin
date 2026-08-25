@@ -51,6 +51,12 @@
           "黑词2"
         ]
       },
+      "join_no_match_msg": {
+        "description": "自动拒绝验证消息为空的进群申请",
+        "hint": "当用户申请加群时，验证消息为空时自动拒绝",
+        "type": "bool",
+        "default": false
+      },
       "join_no_match_reject": {
         "description": "自动拒绝未命中白词的进群申请",
         "hint": "当用户申请加群时，没命中进群关键词，则自动驳回申请",
@@ -63,15 +69,33 @@
         "type": "bool",
         "default": false
       },
+      "allow_ids": {
+        "description": "进群白名单",
+        "hint": "用户加入群聊时，若用户QQ在白名单中，则自动通过，退群时也不会被自动拉黑",
+        "type": "list",
+        "default": []
+      },
       "block_ids": {
         "description": "进群黑名单",
         "hint": "用户加入群聊时，若用户QQ在黑名单中，则自动拒绝",
         "type": "list",
         "default": []
       },
+      "use_global_allow": {
+        "description": "使用全局白名单",
+        "hint": "开启后，使用全局白名单（JSON文件）替代进群白名单",
+        "type": "bool",
+        "default": false
+      },
+      "use_global_block": {
+        "description": "使用全局黑名单",
+        "hint": "开启后，使用全局黑名单（JSON文件）替代进群黑名单，自动拉黑操作也将写入全局黑名单",
+        "type": "bool",
+        "default": false
+      },
       "join_welcome": {
         "description": "进群欢迎词",
-        "hint": "发给新群友的欢迎词, 支持变量: {nickname}, 示例：欢迎{nickname}加入群聊",
+        "hint": "发给新群友的欢迎词, 支持@和图片CQ码, 支持变量: {nickname}、{qq}, 示例：[CQ:at,qq={qq}] 欢迎{nickname}加入群聊",
         "type": "string",
         "default": ""
       },
@@ -229,20 +253,8 @@
         ],
         "default": "管理员"
       },
-      "set_group_ban": {
-        "description": "禁言",
-        "type": "string",
-        "options": [
-          "超管",
-          "群主",
-          "管理员",
-          "高等级成员",
-          "成员"
-        ],
-        "default": "管理员"
-      },
-      "cancel_group_ban": {
-        "description": "解禁",
+      "group_ban": {
+        "description": "禁言与解禁",
         "type": "string",
         "options": [
           "超管",

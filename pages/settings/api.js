@@ -7,17 +7,11 @@ export function createApi(bridge) {
   }
 
   function unwrapBridgeResponse(response) {
-    if (
-      response &&
-      typeof response === "object" &&
-      Object.prototype.hasOwnProperty.call(response, "ok")
-    ) {
+    if (response && typeof response === "object" && "ok" in response) {
       if (!response.ok) {
         throw new Error(response.message || "Request failed");
       }
-      return Object.prototype.hasOwnProperty.call(response, "data")
-        ? response.data
-        : response;
+      return "data" in response ? response.data : response;
     }
     return response;
   }
