@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import anyio
-
 from aiocqhttp import CQHttp, Event
 from apscheduler.job import Job
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
