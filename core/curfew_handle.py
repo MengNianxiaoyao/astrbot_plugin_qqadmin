@@ -6,6 +6,8 @@ import zoneinfo
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import anyio
+
 from aiocqhttp import CQHttp, Event
 from apscheduler.job import Job
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -49,6 +51,12 @@ class CurfewStore:
         except Exception as e:
             logger.error(f"保存宵禁任务数据失败: {e}", exc_info=True)
 
+    async def save_async(self):
+        try:
+            await anyio.to_thread.run_sync(self.save)
+        except Exception as e:
+            logger.error(f"异步保存宵禁任务数据失败: {e}", exc_info=True)
+
 
 class GroupCurfew:
     """单群宵禁任务，维护两个 job（开始/结束）"""
@@ -90,9 +98,7 @@ class GroupCurfew:
             logger.error(f"群 {self.group_id} 宵禁开启失败: {e}", exc_info=True)
             async with self._lock:
                 self.whole_ban_status = False
-            # 异常时移除群
-            if hasattr(self, "manager") and self.manager:
-                await self.manager.remove_group_on_error(self.group_id)
+            # 临时异常不自动移除，保留任务以便下次重试
 
     async def _disable_curfew(self):
         """关闭宵禁"""
@@ -141,12 +147,14 @@ class GroupCurfew:
 
     def stop_curfew_task(self):
         """移除 APScheduler 任务（同步即可）"""
-        if self.start_job:
-            self.start_job.remove()
-            self.start_job = None
-        if self.end_job:
-            self.end_job.remove()
-            self.end_job = None
+        for job in (self.start_job, self.end_job):
+            if job:
+                try:
+                    job.remove()
+                except Exception as e:
+                    logger.debug(f"移除宵禁任务失败(可能已移除): {e}")
+        self.start_job = None
+        self.end_job = None
         logger.info(f"群 {self.group_id} 宵禁任务已移除")
 
 
@@ -277,7 +285,10 @@ class CurfewHandle:
     async def initialize(self):
         tasks = [self._initialize_aiocqhttp_adapter(inst) for inst in self.context.platform_manager.platform_insts if isinstance(inst, AiocqhttpAdapter)]
         if tasks:
-            await asyncio.gather(*tasks)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, Exception):
+                    logger.error(f"宵禁初始化子任务异常: {r}")
 
     @staticmethod
     def parse_time(time_str: str) -> tuple[str, int, int] | None:

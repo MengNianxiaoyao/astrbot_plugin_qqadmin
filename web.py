@@ -22,6 +22,8 @@ PLUGIN_NAME = "astrbot_plugin_qqadmin"
 
 
 class QQAdminWebController:
+    """前端面板路由；鉴权由 AstrBot 框架层统一处理（/api/* 需携带 Dashboard Token），本插件不再额外校验。"""
+
     def __init__(
         self,
         context: Context,

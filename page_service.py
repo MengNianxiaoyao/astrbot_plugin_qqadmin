@@ -241,11 +241,14 @@ class QQAdminPageService:
         group_id = str(group_info.get("group_id", "")).strip()
         if not group_id or group_id == DEFAULT_GROUP_ID:
             return False
+        # 仅当非 live 来源且人数为 0 时视为失效，避免 API 抖动误删
+        if group_info.get("source") == "live":
+            return False
         try:
             member_count = int(group_info.get("member_count", 0))
         except (TypeError, ValueError):
             member_count = 0
-        return member_count <= 0
+        return member_count <= 0 and group_info.get("source") != "live"
 
     def _apply_group_level_updates(self, updated: dict[str, Any]) -> None:
         default_fields = self.schema.get("default", {}).get("items", {})
@@ -326,7 +329,7 @@ class QQAdminPageService:
             if value is None:
                 return []
             if isinstance(value, str):
-                items = re.split(r"[\n,，]+", value)
+                items = re.split(r"[\s\n,，]+", value)
             elif isinstance(value, list):
                 items = value
             else:

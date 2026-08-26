@@ -123,6 +123,7 @@ class QQAdminDB:
         self._cache = {}
         self._initialized = False
         self._init_lock = asyncio.Lock()
+        self._write_lock = asyncio.Lock()
 
     # ============================== 初始化 ==============================
 
@@ -204,9 +205,10 @@ class QQAdminDB:
 
     async def ensure_group(self, gid: str):
         """确保存在群配置，若没有则按 default_cfg 初始化"""
-        if gid not in self._cache or self._is_follow_default_data(self._cache.get(gid)):
-            self._cache[gid] = self._build_explicit_group_record(self.get_group_snapshot(gid))
-            await self._save_to_db(gid, self._cache[gid])
+        async with self._write_lock:
+            if gid not in self._cache or self._is_follow_default_data(self._cache.get(gid)):
+                self._cache[gid] = self._build_explicit_group_record(self.get_group_snapshot(gid))
+                await self._save_to_db(gid, self._cache[gid])
 
     def list_group_ids(self) -> list[str]:
         return sorted(
@@ -242,7 +244,7 @@ class QQAdminDB:
         changed = False
         for k, v in self.default_cfg.items():
             if k not in data:
-                data[k] = json.loads(json.dumps(v))
+                data[k] = copy.deepcopy(v)
                 changed = True
 
         if data.get(self.FOLLOW_DEFAULT_MARKER) is not False:
@@ -250,7 +252,8 @@ class QQAdminDB:
             changed = True
 
         if changed:
-            await self._save_to_db(gid, data)
+            async with self._write_lock:
+                await self._save_to_db(gid, data)
 
         return self.get_group_snapshot(gid)
 
@@ -262,13 +265,16 @@ class QQAdminDB:
             snapshot = self.get_group_snapshot(gid)
             if field in snapshot:
                 return snapshot[field]
-            return json.loads(json.dumps(default))
+            return copy.deepcopy(default)
 
         data = self._cache[gid]
 
         if field not in data:
-            data[field] = json.loads(json.dumps(default))
-            await self._save_to_db(gid, data)
+            async with self._write_lock:
+                # double-check after acquiring lock
+                if field not in data:
+                    data[field] = copy.deepcopy(default)
+                    await self._save_to_db(gid, data)
 
         return data[field]
 
@@ -277,12 +283,14 @@ class QQAdminDB:
         写入字段
         """
         await self.ensure_group(gid)
-        self._cache[gid][field] = value
-        await self._save_to_db(gid, self._cache[gid])
+        async with self._write_lock:
+            self._cache[gid][field] = value
+            await self._save_to_db(gid, self._cache[gid])
 
     async def replace_group(self, gid: str, data: dict):
-        self._cache[gid] = self._build_explicit_group_record(data)
-        await self._save_to_db(gid, self._cache[gid])
+        async with self._write_lock:
+            self._cache[gid] = self._build_explicit_group_record(data)
+            await self._save_to_db(gid, self._cache[gid])
 
     async def add(self, gid: str, field: str, value):
         """
@@ -304,10 +312,11 @@ class QQAdminDB:
 
     async def delete_group(self, gid: str):
         """彻底删除群配置"""
-        if self._conn:
-            await self._conn.execute("DELETE FROM groups WHERE group_id = ?", (gid,))
-            await self._conn.commit()
-        self._cache.pop(gid, None)
+        async with self._write_lock:
+            if self._conn:
+                await self._conn.execute("DELETE FROM groups WHERE group_id = ?", (gid,))
+                await self._conn.commit()
+            self._cache.pop(gid, None)
 
     # ============================== 关闭 ==============================
 
@@ -373,52 +382,48 @@ class QQAdminDB:
 
             old_val = data.get(eng_key)
 
-            # 如果原字段是 bool，则优先进行布尔解析
+            # bool 必须优先且独占分支，避免 bool 误入 int 分支
             if isinstance(old_val, bool):
                 parsed = parse_bool(raw_v)
                 if parsed is not None:
                     data[eng_key] = parsed
-                    continue
-                # 若解析失败，退回默认字面处理（防错）
-
-            # 列表字段：按空格拆
-            if isinstance(old_val, list):
+                # 解析失败则保留原值，避免误写
+                continue
+            elif isinstance(old_val, list):
                 value = [x for x in raw_v.split() if x]
-
-            # 数字字段：自动转 int
             elif isinstance(old_val, int):
                 try:
                     value = int(raw_v)
                 except ValueError:
                     value = old_val  # 防错保底
-
-            # 字符串字段
             else:
                 value = raw_v
 
             data[eng_key] = value
 
-        await self._save_to_db(gid, data)
+        async with self._write_lock:
+            await self._save_to_db(gid, data)
         return self.get_group_snapshot(gid)
 
     async def follow_default(self, gid: str | None = None):
         """让指定群（或全部群）重新跟随默认群配置"""
-        if gid is None:
-            if self._conn:
-                await self._conn.execute("DELETE FROM groups")
-                await self._conn.commit()
-            self._cache.clear()
-            logger.info("所有群聊的群管配置已重新跟随默认值")
-            return
+        async with self._write_lock:
+            if gid is None:
+                if self._conn:
+                    await self._conn.execute("DELETE FROM groups")
+                    await self._conn.commit()
+                self._cache.clear()
+                logger.info("所有群聊的群管配置已重新跟随默认值")
+                return
 
-        normalized_gid = str(gid)
-        if self._conn:
-            await self._conn.execute(
-                "DELETE FROM groups WHERE group_id = ?",
-                (normalized_gid,),
-            )
-            await self._conn.commit()
-        self._cache.pop(normalized_gid, None)
+            normalized_gid = str(gid)
+            if self._conn:
+                await self._conn.execute(
+                    "DELETE FROM groups WHERE group_id = ?",
+                    (normalized_gid,),
+                )
+                await self._conn.commit()
+            self._cache.pop(normalized_gid, None)
         logger.info(f"群聊{normalized_gid}的群管配置已重新跟随默认值")
 
     async def reset_to_default(self, gid: str | None = None):

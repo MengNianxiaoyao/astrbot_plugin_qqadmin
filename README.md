@@ -8,7 +8,7 @@ _✨ QQ群管插件 ✨_
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-4.0%2B-orange.svg)](https://github.com/Soulter/AstrBot)
-[![GitHub](https://img.shields.io/badge/Fork-Zhalslar-blue)](https://github.com/Zhalslar)
+[![GitHub](https://img.shields.io/badge/Fork-Zhalslar-blue)](https://github.com/Zhalslar/astrbot_plugin_qqadmin)
 
 </div>
 

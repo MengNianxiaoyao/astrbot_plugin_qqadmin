@@ -62,7 +62,9 @@ class PermissionManager:
 
     def lazy_init(self, config: PluginConfig, db: QQAdminDB):
         if self._initialized:
-            raise RuntimeError("PermissionManager already initialized")
+            logger.warning("PermissionManager already initialized, refreshing instead")
+            self.refresh(config, db)
+            return
         self.cfg = config
         self.db = db
         self._initialized = True
@@ -75,7 +77,10 @@ class PermissionManager:
 
     async def get_perm_level(self, event: AiocqhttpMessageEvent, user_id: str | int) -> PermLevel:
         group_id = event.get_group_id()
-        if int(group_id) == 0 or int(user_id) == 0:
+        try:
+            if not str(group_id).isdigit() or not str(user_id).isdigit() or int(group_id) == 0 or int(user_id) == 0:
+                return PermLevel.UNKNOWN
+        except Exception:
             return PermLevel.UNKNOWN
         if self.cfg and str(user_id) in self.cfg.admins_id:
             return PermLevel.SUPERUSER

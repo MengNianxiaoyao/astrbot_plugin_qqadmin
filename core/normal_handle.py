@@ -1,3 +1,4 @@
+from astrbot.api import logger
 from astrbot.core.message.components import Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
@@ -16,13 +17,23 @@ class NormalHandle:
     async def set_group_ban(
         self,
         event: AiocqhttpMessageEvent,
-        ban_time: int | None = None,
+        ban_time: int | str | None = None,
         target_id: str | int = "",
     ):
         group_config = self.db.get_group_snapshot(event.get_group_id())
+        # 规范化禁言时长：None/非法值走随机时长
+        if ban_time is not None:
+            try:
+                ban_time = int(str(ban_time).strip())
+            except (TypeError, ValueError):
+                ban_time = None
         if ban_time is None:
-            ban_time = self.cfg.get_ban_time_with_range(group_config.get("random_ban_time"), 60)
+            ban_time = self.cfg.get_ban_time_with_range(group_config.get("random_ban_time"), None)
+        else:
+            ban_time = self.cfg.get_ban_time_with_range(group_config.get("random_ban_time"), ban_time)
         tids = [target_id] if target_id else get_ats(event)
+        if not tids:
+            return "未指定要禁言的用户"
         results = []
         for tid in tids:
             try:
@@ -32,10 +43,11 @@ class NormalHandle:
                     duration=ban_time,
                 )
                 results.append(f"用户[{tid}]已被禁言{ban_time}秒")
-            except Exception:
+            except Exception as e:
+                logger.warning(f"禁言用户{tid}失败: {e}")
                 results.append(f"用户[{tid}]禁言失败")
         event.stop_event()
-        return "\n".join(results) if results else "未指定要禁言的用户"
+        return "\n".join(results)
 
     async def set_group_whole_ban(self, event: AiocqhttpMessageEvent, enable: bool):
         await event.bot.set_group_whole_ban(group_id=int(event.get_group_id()), enable=enable)

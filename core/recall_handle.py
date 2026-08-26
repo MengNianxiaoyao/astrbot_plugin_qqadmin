@@ -22,20 +22,22 @@ class RecallHandle:
         if not chain:
             await event.send(event.plain_result("未获取到可撤回的消息"))
             return
-        first_seg = chain[0]
-        if isinstance(first_seg, Reply):
+        reply_seg = next((seg for seg in chain if isinstance(seg, Reply)), None)
+        if reply_seg:
             try:
-                await client.delete_msg(message_id=int(first_seg.id))
+                await client.delete_msg(message_id=int(reply_seg.id))
             except Exception:
                 await event.send(event.plain_result("我无权撤回这条消息"))
             finally:
                 event.stop_event()
+            return
         elif any(isinstance(seg, At) for seg in chain):
             target_ids = get_ats(event) or [event.get_self_id()]
             target_ids = {str(uid) for uid in target_ids}
 
             end_arg = event.message_str.split()[-1]
             count = int(end_arg) if end_arg.isdigit() else 10
+            count = max(1, min(count, 50))
 
             payloads = {
                 "group_id": int(event.get_group_id()),
@@ -45,7 +47,7 @@ class RecallHandle:
             }
             result: dict = await client.api.call_action("get_group_msg_history", **payloads)
 
-            messages = list(reversed(result.get("messages", [])))
+            messages = result.get("messages", []) or []
             delete_count = 0
             sem = asyncio.Semaphore(10)
 

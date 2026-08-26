@@ -49,9 +49,9 @@ class FileHandle:
             folder_kind, folder_name = resolve_index(left, "folder")
             folder_name = folder_name or left  # 左边不是数字就直接当字符串用
 
-            # 如果右边是数字，需要进入对应文件夹再解析
+            # 如果右边是数字，需要进入对应文件夹再解析（复用已拉取的 response 避免二次请求）
             if right.isdigit() and folder_name:
-                target_folder = await self._get_folder(event, folder_name)
+                target_folder = next((f for f in response["folders"] if f["folder_name"] == folder_name), None)
                 if target_folder:
                     folder_files = await event.bot.get_group_files_by_folder(
                         group_id=int(event.get_group_id()),

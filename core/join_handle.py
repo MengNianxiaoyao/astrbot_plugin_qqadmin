@@ -25,6 +25,7 @@ class JoinHandle:
         self.global_list = global_list or QQAdminGlobalList(config.data_dir)
         self._group_cache = group_cache
         self._fail: dict[str, int] = {}
+        self._fail_time: dict[str, float] = {}
         # 待人工审批的进群申请：{通知消息ID: {flag, gid, uid, nickname, ts}}
         self._pending: dict[str, dict] = {}
 
@@ -311,13 +312,20 @@ class JoinHandle:
             if akws and any(ak.lower() in lower_comment for ak in akws):
                 return True, "命中进群白词"
 
-        # 5.最大失败次数（考虑到只是防爆破，存内存里足矣，重启清零）
+        # 5.最大失败次数（内存防爆破，带24h过期）
         max_fail = await self.db.get(gid, "join_max_time", 3)
         if max_fail > 0:
             key = f"{gid}_{uid}"
+            now = time.time()
+            # 过期清理
+            if key in self._fail_time and now - self._fail_time[key] > 86400:
+                self._fail.pop(key, None)
             self._fail[key] = self._fail.get(key, 0) + 1
+            self._fail_time[key] = now
             if self._fail[key] > max_fail:
                 await self._add_to_block(gid, uid)
+                self._fail.pop(key, None)
+                self._fail_time.pop(key, None)
                 return False, f"进群尝试次数已达上限({max_fail}次)，已拉黑"
 
         # 6.未命中白词时, 自动驳回
@@ -430,7 +438,7 @@ class JoinHandle:
                 welcome = str(join_welcome).replace("{nickname}", nickname).replace("{qq}", uid)
                 if welcome:
                     try:
-                        chain = parse_cq_to_chain(welcome)
+                        chain = parse_cq_to_chain(welcome, allowed_roots=[self.cfg.data_dir, self.cfg.plugin_dir])
                     except Exception as e:
                         logger.warning(f"解析进群欢迎词失败: {e}, 回退为纯文本")
                         chain = []

@@ -19,7 +19,8 @@ class BanproHandle:
         self.db = db
         self.builtin_ban_data = json.loads(config.ban_lexicon_path.read_text(encoding="utf-8"))
         self.builtin_ban_words = self.builtin_ban_data["words"]
-        self.msg_timestamps: dict[str, dict[str, deque[float]]] = defaultdict(lambda: defaultdict(lambda: deque(maxlen=self.cfg.spamming_count)))
+        # 不用 maxlen 固定，动态读取 cfg.spamming_count，便于热更新与手动裁剪
+        self.msg_timestamps: dict[str, dict[str, deque[float]]] = defaultdict(lambda: defaultdict(deque))
         self.last_banned_time: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         # 记录投票 {group_id: {"target": target_id, "votes": {user_id: bool}, "expire": timestamp, "threshold": threshold,}}
         self.vote_cache: dict[str, dict] = {}
@@ -108,11 +109,17 @@ class BanproHandle:
                 return
 
     async def check_ban_words(self, event: AiocqhttpMessageEvent, ban_words: list[str]) -> bool:
-        """检测违禁词并撤回消息"""
+        """检测违禁词并撤回消息；忽略空词与单字词以避免过度匹配"""
         gid = event.get_group_id()
         msg = event.message_str.lower()
         for word in ban_words:
-            if word in msg:
+            w = str(word).strip()
+            if not w:
+                continue
+            if len(w) == 1:
+                logger.warning(f"跳过单字禁词以避免过度匹配: {w!r} (群{gid})")
+                continue
+            if w.lower() in msg:
                 # 撤回消息
                 try:
                     message_id = event.message_obj.message_id
@@ -162,11 +169,15 @@ class BanproHandle:
 
         timestamps = self.msg_timestamps[group_id][sender_id]
         timestamps.append(now)
-        count = self.cfg.spamming_count
+        count = int(self.cfg.spamming_count)
+        interval_thr = float(self.cfg.spamming_interval)
+        # 手动按 count 裁剪，支持配置热更新
+        while len(timestamps) > count:
+            timestamps.popleft()
         if len(timestamps) >= count:
             recent = list(timestamps)[-count:]
             intervals = [recent[i + 1] - recent[i] for i in range(count - 1)]
-            if all(interval < self.cfg.spamming_interval for interval in intervals):
+            if all(interval < interval_thr for interval in intervals):
                 # 提前写入禁止标记，防止并发重复禁
                 self.last_banned_time[group_id][sender_id] = now
 
@@ -181,6 +192,13 @@ class BanproHandle:
                 except Exception:
                     logger.error(f"bot在群{group_id}权限不足，禁言失败")
                 timestamps.clear()
+        # 惰性清理：长时间未刷屏的用户释放内存
+        if len(timestamps) == 1 and (now - timestamps[0] > max(ban_time, 3600)):
+            self.msg_timestamps[group_id].pop(sender_id, None)
+            self.last_banned_time[group_id].pop(sender_id, None)
+            if not self.msg_timestamps[group_id]:
+                self.msg_timestamps.pop(group_id, None)
+                self.last_banned_time.pop(group_id, None)
 
     async def start_vote_mute(self, event, ban_time: int | None = None):
         """
@@ -283,11 +301,6 @@ class BanproHandle:
                 del self.vote_cache[group_id]
             return
 
-        # 提前达成反对阈值 → 立即否决
-        if disagree_count >= threshold:
-            await event.send(event.plain_result(f"禁言投票被否决，{nickname}安全了"))
-            del self.vote_cache[group_id]
-            return
-
+        # 移除“反对阈值提前否决”，仅保留赞同阈值提前通过；否则等待 TTL 多数决，避免少数反对劫持
         # 否则展示当前进度
         await event.send(event.plain_result(f"禁言【{nickname}】：\n赞同({agree_count}/{threshold})\n反对({disagree_count}/{threshold})"))

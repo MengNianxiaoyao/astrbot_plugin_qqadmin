@@ -53,15 +53,28 @@ class MemberHandle:
             logger.warning(f"生成群成员列表图片失败，回退为文本发送：{e}")
             await self._send_text_fallback(event, header, info_lines)
 
-    async def _send_text_fallback(self, event: AiocqhttpMessageEvent, title: str, lines: list[str], chunk_size: int = 40):
-        """图片生成失败时，将长文本分片发送，避免单条消息超出平台长度限制。"""
+    async def _send_text_fallback(self, event: AiocqhttpMessageEvent, title: str, lines: list[str], chunk_size: int = 40, max_chars: int = 1500):
+        """图片生成失败时，将长文本分片发送，避免单条消息超出平台长度限制（按行数与字长双限）。"""
         total = len(lines)
-        if total <= chunk_size:
+        # 预估单条不超限直接发
+        if total <= chunk_size and len(title) + sum(len(line) + 1 for line in lines) <= max_chars:
             await event.send(event.plain_result(title + "\n" + "\n".join(lines)))
             return
-        for start in range(0, total, chunk_size):
-            head = title if start == 0 else f"（续 {start + 1}-{min(start + chunk_size, total)}/{total}）"
-            await event.send(event.plain_result(f"{head}\n" + "\n".join(lines[start : start + chunk_size])))
+        buf: list[str] = []
+        cur_len = len(title)
+        start_idx = 0
+        for idx, line in enumerate(lines):
+            if len(buf) >= chunk_size or cur_len + len(line) + 1 > max_chars:
+                head = title if start_idx == 0 else f"（续 {start_idx + 1}-{start_idx + len(buf)}/{total}）"
+                await event.send(event.plain_result(f"{head}\n" + "\n".join(buf)))
+                start_idx += len(buf)
+                buf = []
+                cur_len = 0
+            buf.append(line)
+            cur_len += len(line) + 1
+        if buf:
+            head = title if start_idx == 0 else f"（续 {start_idx + 1}-{total}/{total}）"
+            await event.send(event.plain_result(f"{head}\n" + "\n".join(buf)))
 
     async def clear_group_member(
         self,
@@ -129,7 +142,9 @@ class MemberHandle:
                 info_lines,
             )
 
-        await event.send(event.chain_result([At(qq=cid) for cid in clear_ids]))
+        # @分批避免超限（每批20）
+        for i in range(0, len(clear_ids), 20):
+            await event.send(event.chain_result([At(qq=cid) for cid in clear_ids[i : i + 20]]))
 
         @session_waiter(timeout=60)  # type: ignore
         async def empty_mention_waiter(controller: SessionController, event: AiocqhttpMessageEvent):
