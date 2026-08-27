@@ -211,6 +211,7 @@ def parse_cq_to_chain(text: str, allowed_roots: list[Path] | None = None) -> lis
                 try:
                     resolved = p.resolve()
                     if allowed_roots:
+
                         def _is_allowed(path: Path) -> bool:
                             for root in allowed_roots:
                                 try:
