@@ -168,6 +168,7 @@ class BotCurfewManager:
         self.store.data.setdefault(bot_id, {})
         self.bot_data = self.store.data[bot_id]
         self.tasks: dict[str, GroupCurfew] = {}
+        self._save_lock = asyncio.Lock()
 
     async def restore_from_store(self):
         """恢复群聊禁言任务"""
@@ -185,10 +186,11 @@ class BotCurfewManager:
             except Exception as e:
                 logger.error(f"恢复群 {group_id} 宵禁失败: {e}")
 
-    def _save(self):
-        self.bot_data.clear()
-        self.bot_data.update({gid: {"start_time": cw._start_time_str, "end_time": cw._end_time_str} for gid, cw in self.tasks.items()})
-        self.store.save()
+    async def _save(self):
+        async with self._save_lock:
+            self.bot_data.clear()
+            self.bot_data.update({gid: {"start_time": cw._start_time_str, "end_time": cw._end_time_str} for gid, cw in self.tasks.items()})
+            await self.store.save_async()
 
     async def remove_group_on_error(self, group_id: str):
         """当群无法操作时自动移除"""
@@ -197,7 +199,7 @@ class BotCurfewManager:
             cw.stop_curfew_task()
         if group_id in self.bot_data:
             self.bot_data.pop(group_id)
-        self._save()
+        await self._save()
         logger.info(f"群 {group_id} 因操作失败已从宵禁任务中移除")
 
     async def enable_curfew(self, group_id: str, start_time: str, end_time: str):
@@ -208,7 +210,7 @@ class BotCurfewManager:
 
         await cw.start_curfew_task()
         self.tasks[group_id] = cw
-        self._save()
+        await self._save()
 
     async def disable_curfew(self, group_id: str) -> bool:
         """关闭群聊的宵禁任务"""
@@ -216,7 +218,7 @@ class BotCurfewManager:
         if cw:
             cw.stop_curfew_task()
             self.bot_data.pop(group_id, None)
-            self._save()
+            await self._save()
             return True
         return False
 
@@ -348,4 +350,4 @@ class CurfewHandle:
             for cw in list(curfew_mgr.tasks.values()):
                 cw.stop_curfew_task()
             curfew_mgr.tasks.clear()
-        self.store.save()
+        await self.store.save_async()

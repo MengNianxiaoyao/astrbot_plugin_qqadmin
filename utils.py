@@ -93,9 +93,9 @@ async def download_file(url: str, save_path: Path, max_size: int = 10 * 1024 * 1
     elif url.startswith("http://"):
         candidates.append("https://" + url[len("http://") :])
 
-    for candidate in candidates:
-        try:
-            async with ClientSession() as client:
+    async with ClientSession() as client:
+        for candidate in candidates:
+            try:
                 response = await client.get(candidate, timeout=timeout_secs)
                 response.raise_for_status()
                 # 预检 Content-Length
@@ -115,8 +115,8 @@ async def download_file(url: str, save_path: Path, max_size: int = 10 * 1024 * 1
 
                 logger.info(f"文件已保存: {save_path}")
                 return save_path
-        except Exception as e:
-            logger.error(f"文件下载失败({candidate}): {e}")
+            except Exception as e:
+                logger.error(f"文件下载失败({candidate}): {e}")
 
     return None
 
@@ -211,7 +211,23 @@ def parse_cq_to_chain(text: str, allowed_roots: list[Path] | None = None) -> lis
                 try:
                     resolved = p.resolve()
                     if allowed_roots:
-                        if not any(str(resolved).startswith(str(r.resolve())) for r in allowed_roots):
+                        def _is_allowed(path: Path) -> bool:
+                            for root in allowed_roots:
+                                try:
+                                    if path.is_relative_to(root.resolve()):
+                                        return True
+                                except AttributeError:
+                                    # py<3.9 fallback
+                                    try:
+                                        path.relative_to(root.resolve())
+                                        return True
+                                    except ValueError:
+                                        continue
+                                except ValueError:
+                                    continue
+                            return False
+
+                        if not _is_allowed(resolved):
                             logger.warning(f"CQ image 越权访问已拦截: {raw}")
                             chain.append(Plain("[图片加载失败]"))
                             last_pos = match.end()

@@ -341,6 +341,7 @@ class JoinHandle:
         """监听进群/退群事件"""
         raw = getattr(event.message_obj, "raw_message", None)
         if not isinstance(raw, dict):
+            logger.debug(f"event_monitoring 忽略非 dict raw_message: {type(raw)}")
             return
 
         gid: str = str(raw.get("group_id", ""))
@@ -366,6 +367,7 @@ class JoinHandle:
             # 清理缓存
             if approve is True:
                 self._fail.pop(f"{gid}_{uid}", None)
+                self._fail_time.pop(f"{gid}_{uid}", None)
 
             # 自动审核
             if approve is not None:
