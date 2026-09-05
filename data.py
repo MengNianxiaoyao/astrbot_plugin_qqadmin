@@ -89,6 +89,7 @@ class QQAdminGlobalList:
         self._ensure_loaded()
         return self._block
 
+
 class QQAdminDB:
     """
     群管插件数据库（极简 API + 动态字段 + 自动补齐）
