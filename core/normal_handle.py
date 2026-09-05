@@ -5,14 +5,20 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 
 from ..config import PluginConfig
-from ..data import QQAdminDB
+from ..data import QQAdminDB, QQAdminGlobalList
 from ..utils import extract_image_url, get_ats, get_nickname
 
 
 class NormalHandle:
-    def __init__(self, config: PluginConfig, db: QQAdminDB):
+    def __init__(
+        self,
+        config: PluginConfig,
+        db: QQAdminDB,
+        global_list: QQAdminGlobalList | None = None,
+    ):
         self.cfg = config
         self.db = db
+        self.global_list = global_list
 
     async def set_group_ban(
         self,
@@ -77,6 +83,8 @@ class NormalHandle:
         target_id: str | int = "",
         special_title: str | int = "",
     ):
+        if special_title and len(special_title) > 6:
+            return "头衔长度不能超过6个字符"
         tids = ([target_id] if target_id else get_ats(event)) or [event.get_sender_id()]
         results = []
         for tid in tids:
@@ -113,6 +121,11 @@ class NormalHandle:
                 user_id=int(tid),
                 reject_add_request=True,
             )
+            gid = event.get_group_id()
+            if await self.db.get(gid, "use_global_block", False) and self.global_list:
+                self.global_list.add("block", tid)
+            else:
+                await self.db.add(gid, "block_ids", str(tid))
             results.append(f"已将【{tid}-{target_name}】踢出本群并拉黑!")
         return "\n".join(results) if results else "未指定要拉黑的用户"
 

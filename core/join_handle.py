@@ -149,7 +149,8 @@ class JoinHandle:
         prefix = "全局" if global_mode else "本群进群"
 
         if global_mode:
-            lst = self.global_list.allow if field == "allow_ids" else self.global_list.block
+            list_type = "allow" if field == "allow_ids" else "block"
+            lst = self.global_list.get(list_type)
         else:
             lst = await self.db.get(gid, field, [])
 
@@ -160,10 +161,7 @@ class JoinHandle:
         if all(tok.isdigit() for tok in raw.split()):
             new_ids = raw.split()
             if global_mode:
-                if field == "allow_ids":
-                    self.global_list.set_allow(new_ids)
-                else:
-                    self.global_list.set_block(new_ids)
+                self.global_list.set(list_type, new_ids)
             else:
                 await self.db.set(gid, field, new_ids)
             await event.send(event.plain_result(f"{prefix}{label}已覆写为：{' '.join(new_ids)}"))
@@ -185,10 +183,7 @@ class JoinHandle:
 
         result = list(curr)
         if global_mode:
-            if field == "allow_ids":
-                self.global_list.set_allow(result)
-            else:
-                self.global_list.set_block(result)
+            self.global_list.set(list_type, result)
         else:
             await self.db.set(gid, field, result)
 
@@ -258,7 +253,7 @@ class JoinHandle:
     async def _add_to_block(self, gid: str, uid: str):
         """向群黑名单或全局黑名单添加用户（根据 use_global_block 判断）"""
         if await self.db.get(gid, "use_global_block", False):
-            self.global_list.add_block(uid)
+            self.global_list.add("block", uid)
         else:
             await self.db.add(gid, "block_ids", uid)
 
@@ -272,13 +267,13 @@ class JoinHandle:
         """判断是否让该用户入群，返回原因"""
         # 0.白名单用户直接通过
         use_global_allow = await self.db.get(gid, "use_global_allow", False)
-        allow_ids = self.global_list.allow if use_global_allow else await self.db.get(gid, "allow_ids", [])
+        allow_ids = self.global_list.get("allow") if use_global_allow else await self.db.get(gid, "allow_ids", [])
         if uid in allow_ids:
             return True, "白名单用户"
 
         # 1.黑名单用户
         use_global_block = await self.db.get(gid, "use_global_block", False)
-        block_ids = self.global_list.block if use_global_block else await self.db.get(gid, "block_ids", [])
+        block_ids = self.global_list.get("block") if use_global_block else await self.db.get(gid, "block_ids", [])
         if uid in block_ids:
             return False, "黑名单用户"
 
@@ -415,7 +410,7 @@ class JoinHandle:
             should_notify = await self.db.get(gid, "leave_notify", False)
             if should_block:
                 use_global_allow = await self.db.get(gid, "use_global_allow", False)
-                allow_ids = self.global_list.allow if use_global_allow else await self.db.get(gid, "allow_ids", [])
+                allow_ids = self.global_list.get("allow") if use_global_allow else await self.db.get(gid, "allow_ids", [])
                 if uid not in allow_ids:
                     await self._add_to_block(gid, uid)
                     did_block = True

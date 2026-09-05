@@ -202,19 +202,12 @@ class QQAdminPageService:
 
     async def get_global_lists(self) -> dict[str, list[str]]:
         return {
-            "allow": list(self.global_list.allow),
-            "block": list(self.global_list.block),
+            "allow": self.global_list.get("allow"),
+            "block": self.global_list.get("block"),
         }
 
     async def update_global_list(self, list_type: str, items: list[str]) -> list[str]:
-        clean = [str(i).strip() for i in items if str(i).strip()]
-        if list_type == "allow":
-            self.global_list.set_allow(clean)
-            return list(self.global_list.allow)
-        if list_type == "block":
-            self.global_list.set_block(clean)
-            return list(self.global_list.block)
-        raise ValueError("list_type must be 'allow' or 'block'")
+        return self.global_list.set(list_type, items)
 
     @staticmethod
     def _load_schema(schema_path: Path) -> dict[str, Any]:
