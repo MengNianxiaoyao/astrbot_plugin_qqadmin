@@ -9,6 +9,7 @@ from typing import Any
 from astrbot.api import logger
 
 from .config import PluginConfig
+from .core.banpro_handle import BanproHandle
 from .data import QQAdminDB, QQAdminGlobalList
 from .group_info_cache import QQGroupInfoCache
 from .permission import perm_manager
@@ -19,11 +20,19 @@ FOLLOW_DEFAULT_KEY = "follow_default"
 
 
 class QQAdminPageService:
-    def __init__(self, cfg: PluginConfig, db: QQAdminDB, group_cache: QQGroupInfoCache, global_list: QQAdminGlobalList | None = None):
+    def __init__(
+        self,
+        cfg: PluginConfig,
+        db: QQAdminDB,
+        group_cache: QQGroupInfoCache,
+        global_list: QQAdminGlobalList,
+        banpro: BanproHandle,
+    ):
         self.cfg = cfg
         self.db = db
         self.group_cache = group_cache
-        self.global_list = global_list or QQAdminGlobalList(cfg.data_dir)
+        self.global_list = global_list
+        self.banpro = banpro
         self.schema = self._load_schema(cfg.plugin_dir / "_conf_schema.json")
 
     @property
@@ -201,13 +210,30 @@ class QQAdminPageService:
         return self.get_default_group_config()
 
     async def get_global_lists(self) -> dict[str, list[str]]:
-        return {
-            "allow": self.global_list.get("allow"),
-            "block": self.global_list.get("block"),
-        }
+        return {name: self.global_list.get(name) for name in ("allow", "block")}
 
     async def update_global_list(self, list_type: str, items: list[str]) -> list[str]:
         return self.global_list.set(list_type, items)
+
+    async def get_global_ban_words(self) -> dict[str, list[str]]:
+        return {
+            "global": self.banpro.get_global_ban_words(),
+            "builtin": self.banpro.get_available_builtin_ban_words(),
+            "builtin_version": self.banpro.builtin_ban_version,
+        }
+
+    async def update_global_ban_words(self, words: list[str]) -> list[str]:
+        if not isinstance(words, list):
+            raise ValueError("words must be a list")
+        return self.banpro.set_global_ban_words(words)
+
+    async def import_builtin_ban_words(self, words: list[str]) -> list[str]:
+        if not isinstance(words, list):
+            raise ValueError("words must be a list")
+        return self.banpro.import_builtin_ban_words(words)
+
+    async def restore_builtin_ban_words(self) -> list[str]:
+        return self.banpro.restore_builtin_ban_words()
 
     @staticmethod
     def _load_schema(schema_path: Path) -> dict[str, Any]:

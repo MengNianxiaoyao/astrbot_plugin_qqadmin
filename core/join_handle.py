@@ -19,10 +19,10 @@ from ..utils import (
 
 
 class JoinHandle:
-    def __init__(self, config: PluginConfig, db: QQAdminDB, global_list: QQAdminGlobalList | None = None, group_cache=None):
+    def __init__(self, config: PluginConfig, db: QQAdminDB, global_list: QQAdminGlobalList, group_cache):
         self.cfg = config
         self.db = db
-        self.global_list = global_list or QQAdminGlobalList(config.data_dir)
+        self.global_list = global_list
         self._group_cache = group_cache
         self._fail: dict[str, int] = {}
         self._fail_time: dict[str, float] = {}
@@ -149,7 +149,7 @@ class JoinHandle:
         prefix = "全局" if global_mode else "本群进群"
 
         if global_mode:
-            list_type = "allow" if field == "allow_ids" else "block"
+            list_type = field.removesuffix("_ids")
             lst = self.global_list.get(list_type)
         else:
             lst = await self.db.get(gid, field, [])

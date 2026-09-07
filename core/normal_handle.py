@@ -14,7 +14,7 @@ class NormalHandle:
         self,
         config: PluginConfig,
         db: QQAdminDB,
-        global_list: QQAdminGlobalList | None = None,
+        global_list: QQAdminGlobalList,
     ):
         self.cfg = config
         self.db = db
@@ -122,7 +122,7 @@ class NormalHandle:
                 reject_add_request=True,
             )
             gid = event.get_group_id()
-            if await self.db.get(gid, "use_global_block", False) and self.global_list:
+            if await self.db.get(gid, "use_global_block", False):
                 self.global_list.add("block", tid)
             else:
                 await self.db.add(gid, "block_ids", str(tid))

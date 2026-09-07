@@ -79,17 +79,6 @@ class QQAdminGlobalList:
     def _save_json(path: Path, data: list[str]):
         path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
-    @property
-    def allow(self) -> list[str]:
-        self._ensure_loaded()
-        return self._allow
-
-    @property
-    def block(self) -> list[str]:
-        self._ensure_loaded()
-        return self._block
-
-
 class QQAdminDB:
     """
     群管插件数据库（极简 API + 动态字段 + 自动补齐）
@@ -111,7 +100,7 @@ class QQAdminDB:
         "join_ban_time": "进群禁言时长",
         "leave_notify": "主动退群通知",
         "leave_block": "主动退群拉黑",
-        "builtin_ban": "启用内置禁词",
+        "builtin_ban": "启用全局禁词",
         "custom_ban_words": "自定义违禁词",
         "word_ban_time": "禁词禁言时长",
         "spamming_ban_time": "刷屏禁言时长",

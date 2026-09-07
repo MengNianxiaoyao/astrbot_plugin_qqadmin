@@ -18,12 +18,55 @@ class BanproHandle:
         self.cfg = config
         self.db = db
         self.builtin_ban_data = json.loads(config.ban_lexicon_path.read_text(encoding="utf-8"))
-        self.builtin_ban_words = self.builtin_ban_data["words"]
+        self.builtin_ban_version = str(self.builtin_ban_data.get("lastUpdateDate", "未知"))
+        self.builtin_ban_words = self._clean_words(self.builtin_ban_data.get("words", []))
+        self.global_ban_words = self._load_global_ban_words()
         # 不用 maxlen 固定，动态读取 cfg.spamming_count，便于热更新与手动裁剪
         self.msg_timestamps: dict[str, dict[str, deque[float]]] = defaultdict(lambda: defaultdict(deque))
         self.last_banned_time: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         # 记录投票 {group_id: {"target": target_id, "votes": {user_id: bool}, "expire": timestamp, "threshold": threshold,}}
         self.vote_cache: dict[str, dict] = {}
+
+    @staticmethod
+    def _clean_words(words) -> list[str]:
+        return list(dict.fromkeys(str(word).strip() for word in words if str(word).strip()))
+
+    def _load_global_ban_words(self) -> list[str]:
+        path = self.cfg.global_ban_lexicon_path
+        if not path.exists():
+            self._save_global_ban_words(self.builtin_ban_words)
+            return list(self.builtin_ban_words)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return self._clean_words(data.get("words", []) if isinstance(data, dict) else data)
+        except Exception as e:
+            logger.warning(f"读取全局禁词失败，已回退内置禁词: {e}")
+            return list(self.builtin_ban_words)
+
+    def _save_global_ban_words(self, words: list[str]) -> None:
+        self.global_ban_words = self._clean_words(words)
+        self.cfg.global_ban_lexicon_path.write_text(
+            json.dumps({"words": self.global_ban_words}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def get_global_ban_words(self) -> list[str]:
+        return list(self.global_ban_words)
+
+    def get_available_builtin_ban_words(self) -> list[str]:
+        global_words = set(self.global_ban_words)
+        return [word for word in self.builtin_ban_words if word not in global_words]
+
+    def set_global_ban_words(self, words: list[str]) -> list[str]:
+        self._save_global_ban_words(words)
+        return self.get_global_ban_words()
+
+    def import_builtin_ban_words(self, words: list[str]) -> list[str]:
+        builtin_words = set(self.builtin_ban_words)
+        return self.set_global_ban_words(self.global_ban_words + [word for word in words if word in builtin_words])
+
+    def restore_builtin_ban_words(self) -> list[str]:
+        return self.set_global_ban_words(self.builtin_ban_words)
 
     async def handle_word_ban_time(self, event: AiocqhttpMessageEvent, time: int | None):
         """设置禁词禁言时长"""
@@ -82,16 +125,16 @@ class BanproHandle:
         await event.send(event.plain_result("\n".join(reply)))
 
     async def handle_builtin_ban_words(self, event: AiocqhttpMessageEvent, mode_str: str | bool | None):
-        """启用/停用内置违禁词"""
+        """启用/停用全局违禁词"""
         gid = event.get_group_id()
         mode = parse_bool(mode_str)
 
         if isinstance(mode, bool):
             await self.db.set(gid, "builtin_ban", mode)
-            await event.send(event.plain_result(f"本群内置禁词：{mode}"))
+            await event.send(event.plain_result(f"本群全局禁词：{mode}"))
         else:
             status = await self.db.get(gid, "builtin_ban", False)
-            await event.send(event.plain_result(f"本群内置禁词：{status}"))
+            await event.send(event.plain_result(f"本群全局禁词：{status}"))
 
     async def on_ban_words(self, event: AiocqhttpMessageEvent):
         """检测禁词并撤回消息、禁言用户"""
@@ -105,7 +148,7 @@ class BanproHandle:
 
         # 检测内置违禁词
         if snapshot.get("builtin_ban", False):
-            if await self.check_ban_words(event, self.builtin_ban_words):
+            if await self.check_ban_words(event, self.global_ban_words):
                 return
 
     async def check_ban_words(self, event: AiocqhttpMessageEvent, ban_words: list[str]) -> bool:

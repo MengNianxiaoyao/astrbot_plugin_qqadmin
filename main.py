@@ -48,7 +48,7 @@ class QQAdminPlugin(Star):
         self.member = MemberHandle(self)
         self.file = FileHandle(self.cfg)
         self.curfew = CurfewHandle(self.context, self.cfg)
-        self.web = QQAdminWebController(context, self.cfg, self.db, self.group_cache, self.global_list)
+        self.web = QQAdminWebController(context, self.cfg, self.db, self.group_cache, self.global_list, self.banpro)
         self.web.register_routes()
 
     async def initialize(self):
@@ -234,10 +234,10 @@ class QQAdminPlugin(Star):
         """禁词 +词1 -词2, 带+-则增删, 不带则覆写"""
         await self.banpro.handle_ban_words(event)
 
-    @filter.command("内置禁词")
+    @filter.command("全局禁词", alias={"内置禁词"})
     @perm_required(PermLevel.ADMIN, perm_key="word_ban")
     async def handle_builtin_ban_words(self, event: AiocqhttpMessageEvent, mode: str | bool | None = None):
-        """内置禁词 开/关"""
+        """全局禁词 开/关"""
         await self.banpro.handle_builtin_ban_words(event, mode)
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)

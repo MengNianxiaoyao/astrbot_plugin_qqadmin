@@ -882,40 +882,124 @@ img {
 }
 
 #globalListPanel.detail-stack {
-    display: grid;
-    grid-template-rows: auto 1fr 1fr auto;
-    gap: 14px;
     overflow: hidden;
 }
 
-#globalListPanel .global-list-display {
-    overflow-y: auto;
-}
-
-#globalListPanel .field {
-    display: flex;
-    flex-direction: column;
-}
-
-#globalListPanel .field-control {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-#globalListPanel .field-control textarea {
-    flex: 1;
-}
-
-#globalListPanel .global-list-display,
-#globalListPanel .field,
-#globalListPanel .field-control,
-#globalListPanel .field-control textarea {
+#globalListContent.detail-stack {
+    display: grid;
+    grid-template-rows: 1fr 1fr auto;
+    gap: 14px;
     min-height: 0;
 }
 
-#globalListPanel .global-list-rows {
+#globalListContent.detail-stack.is-hidden {
+    display: none;
+}
+
+#globalListContent .global-list-display {
+    overflow-y: auto;
+}
+
+#globalListContent .field {
+    display: flex;
+    flex-direction: column;
+}
+
+#globalListContent .field-control {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#globalListContent .field-control textarea {
+    flex: 1;
+}
+
+#globalListContent .global-list-display,
+#globalListContent .field,
+#globalListContent .field-control,
+#globalListContent .field-control textarea {
+    min-height: 0;
+}
+
+#globalListContent .global-list-rows {
     max-height: none;
+}
+
+#globalListPanel #globalBanWordsPanel.detail-stack {
+    overflow: hidden;
+    padding-right: 0;
+}
+
+.ban-word-panels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    flex: 1;
+    min-height: 0;
+}
+
+.builtin-ban-words-section,
+.global-ban-words-section {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.global-ban-words-section {
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.builtin-ban-words-section .global-list-display,
+.global-ban-words-section .global-list-display {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+#globalBanWordsPanel .global-list-rows {
+    max-height: 100%;
+}
+
+.ban-word-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.ban-word-header-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.ban-word-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.ban-word-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ban-word-select-all,
+.ban-word-row-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.ban-word-select-all {
+    padding: 4px 12px;
+    color: var(--muted);
+    font-size: 12px;
 }
 
 .global-list-display {
@@ -1014,20 +1098,23 @@ img {
         justify-content: flex-start;
     }
 
-    #globalListPanel.detail-stack {
+    #globalListContent.detail-stack {
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto 1fr auto;
     }
-    #globalListPanel .global-list-tabs,
-    #globalListPanel .sticky-actions {
+    #globalListContent .sticky-actions {
         grid-column: 1 / -1;
     }
-    #globalListPanel .global-list-display {
+    #globalListContent .global-list-display {
         grid-column: 1;
         grid-row: 2;
     }
-    #globalListPanel .field {
+    #globalListContent .field {
         grid-column: 2;
         grid-row: 2;
+    }
+
+    .ban-word-panels {
+        grid-template-columns: 1fr;
     }
 }

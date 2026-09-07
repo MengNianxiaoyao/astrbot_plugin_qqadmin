@@ -35,11 +35,22 @@ const els = {
   saveGroupBtn: document.getElementById("saveGroupBtn"),
   resetGroupBtn: document.getElementById("resetGroupBtn"),
   globalListPanel: document.getElementById("globalListPanel"),
+  globalListContent: document.getElementById("globalListContent"),
+  globalBanWordsPanel: document.getElementById("globalBanWordsPanel"),
   globalListDisplay: document.getElementById("globalListDisplay"),
   globalListBatchInput: document.getElementById("globalListBatchInput"),
   overwriteGlobalListBtn: document.getElementById("overwriteGlobalListBtn"),
   appendGlobalListBtn: document.getElementById("appendGlobalListBtn"),
   groupActions: document.getElementById("groupActions"),
+  globalBanWordsDisplay: document.getElementById("globalBanWordsDisplay"),
+  builtinBanWordsDisplay: document.getElementById("builtinBanWordsDisplay"),
+  builtinBanWordsVersion: document.getElementById("builtinBanWordsVersion"),
+  globalBanWordsBatchInput: document.getElementById("globalBanWordsBatchInput"),
+  appendGlobalBanWordsBtn: document.getElementById("appendGlobalBanWordsBtn"),
+  overwriteGlobalBanWordsBtn: document.getElementById("overwriteGlobalBanWordsBtn"),
+  deleteSelectedBanWordsBtn: document.getElementById("deleteSelectedBanWordsBtn"),
+  restoreBuiltinBanWordsBtn: document.getElementById("restoreBuiltinBanWordsBtn"),
+  importSelectedBanWordsBtn: document.getElementById("importSelectedBanWordsBtn"),
   groupListPanel: document.getElementById("groupListPanel"),
   workspaceGrid: document.querySelector(".workspace-grid"),
   viewTabs: document.querySelectorAll(".view-tab"),
@@ -48,6 +59,7 @@ const els = {
 
 let currentGlobalType = "allow";
 let globalListData = { allow: [], block: [] };
+let globalBanWordsData = { global: [], builtin: [] };
 
 function updateThemeButton() {
   if (els.toggleThemeBtn && themeController) {
@@ -348,7 +360,266 @@ function switchView(view) {
   });
 
   if (isGlobal) {
+    switchGlobalTab(currentGlobalType);
+  }
+}
+
+function switchGlobalTab(type) {
+  const isBanWords = type === "ban-words";
+  currentGlobalType = type;
+  els.globalListContent.classList.toggle("is-hidden", isBanWords);
+  els.globalBanWordsPanel.classList.toggle("is-hidden", !isBanWords);
+  if (isBanWords) {
+    loadGlobalBanWords();
+  } else {
     loadGlobalLists();
+  }
+}
+
+async function loadGlobalBanWords() {
+  try {
+    globalBanWordsData = await api.safeGet("settings/global-ban-words");
+    renderGlobalBanWords();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function renderWordList(container, words, emptyText, onClick) {
+  container.innerHTML = "";
+  const count = document.createElement("div");
+  count.className = "global-list-count";
+  count.textContent = `共 ${words.length} 个`;
+  container.appendChild(count);
+  if (!words.length) {
+    const empty = document.createElement("div");
+    empty.className = "global-list-empty";
+    empty.textContent = emptyText;
+    container.appendChild(empty);
+    return;
+  }
+  const list = document.createElement("div");
+  list.className = "global-list-rows";
+  words.forEach((word) => {
+    const row = document.createElement("div");
+    row.className = "global-list-row";
+    const label = document.createElement("span");
+    label.className = "global-list-row-label";
+    label.textContent = word;
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "global-list-row-del";
+    action.textContent = onClick.label;
+    action.addEventListener("click", () => onClick.handler(word));
+    row.append(label, action);
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
+function renderGlobalBanWords() {
+  els.builtinBanWordsVersion.textContent = `当前版本：${globalBanWordsData.builtin_version || "未知"}`;
+  renderManagedGlobalBanWords();
+  renderBuiltinBanWords();
+}
+
+function renderManagedGlobalBanWords() {
+  const container = els.globalBanWordsDisplay;
+  const words = globalBanWordsData.global || [];
+  container.innerHTML = "";
+  const count = document.createElement("div");
+  count.className = "global-list-count";
+  count.textContent = `共 ${words.length} 个`;
+  container.appendChild(count);
+  if (!words.length) {
+    const empty = document.createElement("div");
+    empty.className = "global-list-empty";
+    empty.textContent = "当前全局禁词为空。";
+    container.appendChild(empty);
+    return;
+  }
+
+  const selectAll = document.createElement("label");
+  selectAll.className = "ban-word-select-all";
+  const selectAllInput = document.createElement("input");
+  selectAllInput.type = "checkbox";
+  selectAllInput.addEventListener("change", () => {
+    container.querySelectorAll(".global-ban-word-check").forEach((input) => {
+      input.checked = selectAllInput.checked;
+    });
+  });
+  selectAll.append(selectAllInput, document.createTextNode("全选"));
+  container.appendChild(selectAll);
+
+  const list = document.createElement("div");
+  list.className = "global-list-rows";
+  words.forEach((word) => {
+    const row = document.createElement("div");
+    row.className = "global-list-row";
+    const label = document.createElement("label");
+    label.className = "ban-word-row-label";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = word;
+    input.className = "global-ban-word-check";
+    label.append(input, document.createTextNode(word));
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "global-list-row-del";
+    action.textContent = "删除";
+    action.addEventListener("click", () => removeGlobalBanWord(word));
+    row.append(label, action);
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
+function renderBuiltinBanWords() {
+  const container = els.builtinBanWordsDisplay;
+  const words = globalBanWordsData.builtin || [];
+  container.innerHTML = "";
+  const count = document.createElement("div");
+  count.className = "global-list-count";
+  count.textContent = `共 ${words.length} 个`;
+  container.appendChild(count);
+  if (!words.length) {
+    const empty = document.createElement("div");
+    empty.className = "global-list-empty";
+    empty.textContent = "所有内置禁词均已导入。";
+    container.appendChild(empty);
+    return;
+  }
+
+  const selectAll = document.createElement("label");
+  selectAll.className = "ban-word-select-all";
+  const selectAllInput = document.createElement("input");
+  selectAllInput.type = "checkbox";
+  selectAllInput.addEventListener("change", () => {
+    container.querySelectorAll(".builtin-ban-word-check").forEach((input) => {
+      input.checked = selectAllInput.checked;
+    });
+  });
+  selectAll.append(selectAllInput, document.createTextNode("全选"));
+  container.appendChild(selectAll);
+
+  const list = document.createElement("div");
+  list.className = "global-list-rows";
+  words.forEach((word) => {
+    const row = document.createElement("div");
+    row.className = "global-list-row";
+    const label = document.createElement("label");
+    label.className = "ban-word-row-label";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = word;
+    input.className = "builtin-ban-word-check";
+    label.append(input, document.createTextNode(word));
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "global-list-row-del";
+    action.textContent = "导入";
+    action.addEventListener("click", () => importBuiltinBanWord(word));
+    row.append(label, action);
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
+function getBanWordBatchItems() {
+  return [...new Set(
+    els.globalBanWordsBatchInput.value
+      .split(/\n+/)
+      .map((word) => word.trim())
+      .filter(Boolean)
+  )];
+}
+
+async function saveGlobalBanWords(words, message) {
+  globalBanWordsData.global = await api.safePost("settings/global-ban-words", { words });
+  els.globalBanWordsBatchInput.value = "";
+  await loadGlobalBanWords();
+  showToast(message);
+}
+
+async function removeGlobalBanWord(word) {
+  if (!(await showConfirm(`确定删除禁词“${word}”吗？`))) return;
+  try {
+    await saveGlobalBanWords(
+      globalBanWordsData.global.filter((item) => item !== word),
+      "全局禁词已删除"
+    );
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function removeSelectedGlobalBanWords() {
+  const words = [...els.globalBanWordsDisplay.querySelectorAll(".global-ban-word-check:checked")]
+    .map((input) => input.value);
+  if (!words.length) {
+    showToast("请先选择全局禁词", "error");
+    return;
+  }
+  if (!(await showConfirm(`确定删除选中的 ${words.length} 个禁词吗？`))) return;
+  try {
+    const removed = new Set(words);
+    await saveGlobalBanWords(
+      globalBanWordsData.global.filter((word) => !removed.has(word)),
+      `已删除 ${words.length} 个全局禁词`
+    );
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function importBuiltinBanWord(word) {
+  try {
+    globalBanWordsData.global = await api.safePost("settings/global-ban-words/import", { words: [word] });
+    await loadGlobalBanWords();
+    showToast("内置禁词已导入");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function importSelectedBanWords() {
+  const words = [...els.builtinBanWordsDisplay.querySelectorAll(".builtin-ban-word-check:checked")]
+    .map((input) => input.value);
+  if (!words.length) {
+    showToast("请先选择内置禁词", "error");
+    return;
+  }
+  try {
+    await api.safePost("settings/global-ban-words/import", { words });
+    await loadGlobalBanWords();
+    showToast(`已导入 ${words.length} 个内置禁词`);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function appendGlobalBanWords() {
+  const words = getBanWordBatchItems();
+  if (!words.length) {
+    showToast("输入框为空", "error");
+    return;
+  }
+  await saveGlobalBanWords([...globalBanWordsData.global, ...words], "全局禁词已添加");
+}
+
+async function overwriteGlobalBanWords() {
+  if (!(await showConfirm("确定覆写全局禁词吗？"))) return;
+  await saveGlobalBanWords(getBanWordBatchItems(), "全局禁词已覆写");
+}
+
+async function restoreBuiltinBanWords() {
+  if (!(await showConfirm("确定以当前内置禁词覆盖全局禁词吗？"))) return;
+  try {
+    globalBanWordsData.global = await api.safePost("settings/global-ban-words/restore", {});
+    await loadGlobalBanWords();
+    showToast("已恢复内置禁词");
+  } catch (error) {
+    showToast(error.message, "error");
   }
 }
 
@@ -579,8 +850,7 @@ function bindEvents() {
         t.classList.toggle("is-active", active);
         t.setAttribute("aria-selected", String(active));
       });
-      currentGlobalType = tab.dataset.globalType;
-      renderGlobalList();
+      switchGlobalTab(tab.dataset.globalType);
     });
   });
 
@@ -599,6 +869,16 @@ function bindEvents() {
       showToast(error.message, "error");
     }
   });
+
+  els.appendGlobalBanWordsBtn.addEventListener("click", () => {
+    appendGlobalBanWords().catch((error) => showToast(error.message, "error"));
+  });
+  els.overwriteGlobalBanWordsBtn.addEventListener("click", () => {
+    overwriteGlobalBanWords().catch((error) => showToast(error.message, "error"));
+  });
+  els.deleteSelectedBanWordsBtn.addEventListener("click", removeSelectedGlobalBanWords);
+  els.restoreBuiltinBanWordsBtn.addEventListener("click", restoreBuiltinBanWords);
+  els.importSelectedBanWordsBtn.addEventListener("click", importSelectedBanWords);
 }
 
 async function init() {

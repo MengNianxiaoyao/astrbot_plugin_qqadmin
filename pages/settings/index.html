@@ -46,17 +46,62 @@
                             <div class="global-list-tabs" role="tablist">
                                 <button class="global-list-tab is-active" data-global-type="allow" role="tab" aria-selected="true">白名单</button>
                                 <button class="global-list-tab" data-global-type="block" role="tab" aria-selected="false">黑名单</button>
+                                <button class="global-list-tab" data-global-type="ban-words" role="tab" aria-selected="false">全局禁词</button>
                             </div>
-                            <div id="globalListDisplay" class="global-list-display"></div>
-                            <div class="field">
-                                <div class="field-label">添加QQ（支持批量导入）</div>
-                                <div class="field-control">
-                                    <textarea id="globalListBatchInput" placeholder="每行一个QQ号"></textarea>
+                            <div id="globalListContent" class="detail-stack">
+                                <div id="globalListDisplay" class="global-list-display"></div>
+                                <div class="field">
+                                    <div class="field-label">添加QQ（支持批量导入）</div>
+                                    <div class="field-control">
+                                        <textarea id="globalListBatchInput" placeholder="每行一个QQ号"></textarea>
+                                    </div>
+                                </div>
+                                <div class="sticky-actions">
+                                    <button class="ghost-button" id="appendGlobalListBtn">添加保存</button>
+                                    <button class="primary-button" id="overwriteGlobalListBtn">覆写保存</button>
                                 </div>
                             </div>
-                            <div class="sticky-actions">
-                                <button class="ghost-button" id="appendGlobalListBtn">添加保存</button>
-                                <button class="primary-button" id="overwriteGlobalListBtn">覆写保存</button>
+
+                            <div id="globalBanWordsPanel" class="detail-stack is-hidden">
+                                <div class="ban-word-panels">
+                                    <div class="builtin-ban-words-section">
+                                        <div class="ban-word-list-header">
+                                            <div>
+                                                <div class="ban-word-title-row">
+                                                    <div class="field-label">内置禁词</div>
+                                                    <span id="builtinBanWordsVersion" class="soft-badge"></span>
+                                                </div>
+                                                <div class="field-hint">点击词条导入全局禁词。已导入词条不会在这里显示。</div>
+                                            </div>
+                                            <button class="primary-button" id="importSelectedBanWordsBtn">导入选中</button>
+                                        </div>
+                                        <div id="builtinBanWordsDisplay" class="global-list-display"></div>
+                                    </div>
+
+                                    <div class="global-ban-words-section">
+                                        <div class="ban-word-panel-header">
+                                            <div>
+                                                <div class="field-label">全局禁词</div>
+                                                <div class="field-hint">词库保存在插件数据目录，不会修改插件内置词库。</div>
+                                            </div>
+                                            <div class="ban-word-header-actions">
+                                                <button class="ghost-button" id="deleteSelectedBanWordsBtn">删除选中</button>
+                                                <button class="ghost-button" id="restoreBuiltinBanWordsBtn">恢复内置禁词</button>
+                                            </div>
+                                        </div>
+                                        <div id="globalBanWordsDisplay" class="global-list-display"></div>
+                                        <div class="field">
+                                            <div class="field-label">添加禁词（支持批量）</div>
+                                            <div class="field-control">
+                                                <textarea id="globalBanWordsBatchInput" placeholder="每行一个禁词"></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="sticky-actions">
+                                            <button class="ghost-button" id="appendGlobalBanWordsBtn">添加保存</button>
+                                            <button class="primary-button" id="overwriteGlobalBanWordsBtn">覆写保存</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

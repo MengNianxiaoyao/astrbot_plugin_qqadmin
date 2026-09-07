@@ -14,6 +14,7 @@ except ImportError:
     quart_request_obj = None
 
 from .config import PluginConfig
+from .core.banpro_handle import BanproHandle
 from .data import QQAdminDB, QQAdminGlobalList
 from .group_info_cache import QQGroupInfoCache
 from .page_service import QQAdminPageService
@@ -30,10 +31,11 @@ class QQAdminWebController:
         cfg: PluginConfig,
         db: QQAdminDB,
         group_cache: QQGroupInfoCache,
-        global_list: QQAdminGlobalList | None = None,
+        global_list: QQAdminGlobalList,
+        banpro: BanproHandle,
     ):
         self.context = context
-        self.service = QQAdminPageService(cfg, db, group_cache, global_list)
+        self.service = QQAdminPageService(cfg, db, group_cache, global_list, banpro)
 
     def register_routes(self) -> None:
         routes = [
@@ -80,6 +82,30 @@ class QQAdminWebController:
                 self.page_update_global_list,
                 ["POST"],
                 "Update global allow/block list",
+            ),
+            (
+                "/settings/global-ban-words",
+                self.page_get_global_ban_words,
+                ["GET"],
+                "Get global and available builtin ban words",
+            ),
+            (
+                "/settings/global-ban-words",
+                self.page_update_global_ban_words,
+                ["POST"],
+                "Update global ban words",
+            ),
+            (
+                "/settings/global-ban-words/import",
+                self.page_import_builtin_ban_words,
+                ["POST"],
+                "Import builtin ban words into global ban words",
+            ),
+            (
+                "/settings/global-ban-words/restore",
+                self.page_restore_builtin_ban_words,
+                ["POST"],
+                "Restore global ban words from builtin ban words",
             ),
         ]
         for path, handler, methods, desc in routes:
@@ -177,3 +203,20 @@ class QQAdminWebController:
         items = payload.get("items", [])
         result = await self.service.update_global_list(list_type, items)
         return self._jsonify({"ok": True, "message": f"全局{'白名单' if list_type == 'allow' else '黑名单'}已更新", "data": result})
+
+    async def page_get_global_ban_words(self):
+        return self._jsonify({"ok": True, "data": await self.service.get_global_ban_words()})
+
+    async def page_update_global_ban_words(self):
+        payload = await self._request().get_json(force=True, silent=True) or {}
+        words = await self.service.update_global_ban_words(payload.get("words", []))
+        return self._jsonify({"ok": True, "message": "全局禁词已更新", "data": words})
+
+    async def page_import_builtin_ban_words(self):
+        payload = await self._request().get_json(force=True, silent=True) or {}
+        words = await self.service.import_builtin_ban_words(payload.get("words", []))
+        return self._jsonify({"ok": True, "message": "内置禁词已导入", "data": words})
+
+    async def page_restore_builtin_ban_words(self):
+        words = await self.service.restore_builtin_ban_words()
+        return self._jsonify({"ok": True, "message": "已恢复内置禁词", "data": words})
