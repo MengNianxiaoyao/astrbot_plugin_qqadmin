@@ -79,6 +79,7 @@ class QQAdminGlobalList:
     def _save_json(path: Path, data: list[str]):
         path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
+
 class QQAdminDB:
     """
     群管插件数据库（极简 API + 动态字段 + 自动补齐）
