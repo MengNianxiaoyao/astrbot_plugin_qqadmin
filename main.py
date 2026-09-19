@@ -322,6 +322,18 @@ class QQAdminPlugin(Star):
         "设置/查看是否拒绝无关键词的进群申请（无参数表示查看）"
         await self.join.handle_no_match_reject(event, mode)
 
+    @filter.command("群满拒绝")
+    @perm_required(PermLevel.ADMIN, perm_key="join")
+    async def handle_join_full_reject(self, event: AiocqhttpMessageEvent, mode: str | bool | None = None):
+        "设置/查看群满时是否自动拒绝进群申请（无参数表示查看）"
+        await self.join.handle_join_full_reject(event, mode)
+
+    @filter.command("群满文案")
+    @perm_required(PermLevel.ADMIN, perm_key="join")
+    async def handle_join_full_msg(self, event: AiocqhttpMessageEvent):
+        "群满文案 <拒绝理由>"
+        await self.join.handle_join_full_msg(event)
+
     @filter.command("进群等级")
     @perm_required(PermLevel.ADMIN, perm_key="join")
     async def handle_join_min_level(self, event: AiocqhttpMessageEvent, level: int | None = None):

@@ -62,7 +62,18 @@ class NoticeHandle:
                 await self._cleanup_old_images()
             except Exception:
                 pass
-        event.stop_event()
+        else:
+            try:
+                await event.bot.api.call_action(
+                    "send_group_notice",
+                    group_id=int(event.get_group_id()),
+                    content=content,
+                )
+            except AttributeError:
+                await event.bot._send_group_notice(
+                    group_id=int(event.get_group_id()),
+                    content=content,
+                )
         return "群公告已发布"
 
     async def _cleanup_old_images(self, keep: int = 50, max_age_days: int = 7):

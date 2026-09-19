@@ -19,6 +19,18 @@ function buildGroupRoleBadge(group) {
   return badge;
 }
 
+function formatMemberText(group) {
+  const member = Number(group?.member_count) || 0;
+  const max = Number(group?.max_member_count) || 0;
+  if (max > 0) {
+    return `${member}/${max} 人`;
+  }
+  if (member > 0) {
+    return `${member} 人`;
+  }
+  return "";
+}
+
 export function renderGroupCards({
   root,
   groups,
@@ -80,9 +92,10 @@ export function renderGroupCards({
         <span>新群继承这里的配置</span>
       `;
     } else {
+      const memberText = formatMemberText(group);
       subline.innerHTML = `
         <span class="group-card-id">${group.group_id}</span>
-        <span>${group.member_count || 0} 人</span>
+        ${memberText ? `<span>${memberText}</span>` : ""}
       `;
     }
     main.appendChild(subline);
@@ -102,4 +115,9 @@ export function renderGroupCards({
 export function renderGroupDetailHeader(els, payload) {
   const info = payload.group_info || {};
   els.currentGroupName.textContent = info.group_name || `群 ${payload.group_id}`;
+  if (els.currentGroupMeta) {
+    const memberText = formatMemberText(info);
+    const groupId = payload.group_id && !payload.is_default_group ? `群号 ${payload.group_id}` : "";
+    els.currentGroupMeta.textContent = [groupId, memberText ? `人数 ${memberText}` : ""].filter(Boolean).join(" · ");
+  }
 }

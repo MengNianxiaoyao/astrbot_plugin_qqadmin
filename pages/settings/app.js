@@ -28,6 +28,7 @@ const els = {
   groupList: document.getElementById("groupList"),
   groupSearchInput: document.getElementById("groupSearchInput"),
   currentGroupName: document.getElementById("currentGroupName"),
+  currentGroupMeta: document.getElementById("currentGroupMeta"),
   groupListCount: document.getElementById("groupListCount"),
   toastLayer: document.getElementById("toastLayer"),
   toggleThemeBtn: document.getElementById("toggleThemeBtn"),
@@ -180,9 +181,16 @@ function renderGroupForm(groupPayload) {
   currentGroup = groupPayload;
 
   renderGroupDetailHeader(els, groupPayload);
+  const rawSchema = bootstrapData.schema.group || {};
+  // 默认群模板本身就是被跟随的对象，不需要"跟随默认配置"开关
+  const schema = groupPayload?.is_default_group
+    ? Object.fromEntries(
+        Object.entries(rawSchema).filter(([key]) => key !== FOLLOW_DEFAULT_KEY)
+      )
+    : rawSchema;
   renderSchemaFields(
     els.groupForm,
-    bootstrapData.schema.group || {},
+    schema,
     buildGroupFormValues(groupPayload),
     {
       singleColumn: true,
@@ -352,6 +360,9 @@ function switchView(view) {
   els.currentGroupName.textContent = isGlobal
     ? "全局配置"
     : currentGroup?.group_info?.group_name || "未选择群";
+  if (els.currentGroupMeta) {
+    els.currentGroupMeta.textContent = "";
+  }
 
   els.viewTabs.forEach((tab) => {
     const active = tab.dataset.view === view;

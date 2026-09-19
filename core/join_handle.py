@@ -123,6 +123,27 @@ class JoinHandle:
             status = await self.db.get(gid, "join_no_match_reject")
             await event.send(event.plain_result(f"本群未命中白词驳回：{status}"))
 
+    async def handle_join_full_reject(self, event: AiocqhttpMessageEvent, mode_str: str | bool | None):
+        gid = event.get_group_id()
+        mode = parse_bool(mode_str)
+        if isinstance(mode, bool):
+            await self.db.set(gid, "join_full_reject", mode)
+            await event.send(event.plain_result(f"本群群满自动驳回已设为：{mode}"))
+        else:
+            status = await self.db.get(gid, "join_full_reject", True)
+            await event.send(event.plain_result(f"本群群满自动驳回：{status}"))
+
+    async def handle_join_full_msg(self, event: AiocqhttpMessageEvent):
+        gid = event.get_group_id()
+        raw = event.message_str.partition(" ")[2]
+
+        if raw:
+            await self.db.set(gid, "join_full_msg", raw)
+            await event.send(event.plain_result(f"本群群满拒绝文案已设为：\n{raw}"))
+        else:
+            text = await self.db.get(gid, "join_full_msg", "群人数已满")
+            await event.send(event.plain_result(f"本群群满拒绝文案：\n{text or '（未设置）'}"))
+
     async def handle_join_min_level(self, event: AiocqhttpMessageEvent, level: int | None):
         gid = event.get_group_id()
         if isinstance(level, int):
@@ -250,6 +271,56 @@ class JoinHandle:
             await event.send(event.plain_result(f"本群退群拉黑：{status}"))
 
     # ---------辅助函数-----------------
+    async def _is_group_full(self, gid: str, client=None) -> bool:
+        """群人数是否已满。无法获取到有效人数时返回 False（放行，走正常审核流程）。"""
+
+        def _counts(info: dict | None) -> tuple[int, int] | None:
+            if not isinstance(info, dict):
+                return None
+            # 兼容 call_action 包裹的 {"data": {...}} 结构
+            data = info.get("data")
+            if isinstance(data, dict):
+                info = data
+            try:
+                member_count = int(info.get("member_count") or 0)
+                max_count = int(info.get("max_member_count") or 0)
+            except (TypeError, ValueError):
+                return None
+            if member_count <= 0 or max_count <= 0:
+                return None
+            return member_count, max_count
+
+        # 1. 优先用群缓存（强制刷新拿到最新人数）
+        if self._group_cache:
+            try:
+                group = await self._group_cache.get_group(gid, force=True)
+                counts = _counts(group)
+                if counts:
+                    member_count, max_count = counts
+                    return member_count >= max_count
+            except Exception:
+                pass
+
+        # 2. 兜底直查 OneBot 接口
+        if client is not None:
+            try:
+                info = None
+                if hasattr(client, "get_group_info"):
+                    try:
+                        info = await client.get_group_info(group_id=int(gid))
+                    except TypeError:
+                        info = await client.get_group_info(group_id=int(gid), no_cache=True)
+                elif hasattr(client, "call_action"):
+                    info = await client.call_action("get_group_info", group_id=int(gid))
+                counts = _counts(info if isinstance(info, dict) else None)
+                if counts:
+                    member_count, max_count = counts
+                    return member_count >= max_count
+            except Exception as e:
+                logger.debug(f"获取群 {gid} 人数失败，跳过满群检查: {e}")
+
+        return False
+
     async def _add_to_block(self, gid: str, uid: str):
         """向群黑名单或全局黑名单添加用户（根据 use_global_block 判断）"""
         if await self.db.get(gid, "use_global_block", False):
@@ -263,8 +334,15 @@ class JoinHandle:
         uid: str,
         comment: str | None = None,
         user_level: int | None = None,
+        client=None,
     ) -> tuple[bool | None, str]:
         """判断是否让该用户入群，返回原因"""
+        # -1.群人数已满时直接拒绝，白名单也不放行（可通过“群满拒绝”命令关闭）
+        if await self.db.get(gid, "join_full_reject", True):
+            if await self._is_group_full(gid, client):
+                full_msg = await self.db.get(gid, "join_full_msg", "群人数已满")
+                return False, full_msg or "群人数已满"
+
         # 0.白名单用户直接通过
         use_global_allow = await self.db.get(gid, "use_global_allow", False)
         allow_ids = self.global_list.get("allow") if use_global_allow else await self.db.get(gid, "allow_ids", [])
@@ -357,8 +435,8 @@ class JoinHandle:
             else:
                 level = info.get("qqLevel") or info.get("level")
 
-            # 判断是否通过
-            approve, reason = await self.should_approve(gid, uid, comment, level)
+            # 判断是否通过（满群时直接拒绝，白名单也不放行）
+            approve, reason = await self.should_approve(gid, uid, comment, level, client=client)
             # 清理缓存
             if approve is True:
                 self._fail.pop(f"{gid}_{uid}", None)

@@ -63,6 +63,18 @@
         "type": "bool",
         "default": false
       },
+      "join_full_reject": {
+        "description": "群满自动拒绝",
+        "hint": "群人数已满时自动拒绝进群申请，白名单也不放行",
+        "type": "bool",
+        "default": true
+      },
+      "join_full_msg": {
+        "description": "群满拒绝文案",
+        "hint": "群人数已满自动拒绝进群申请时，向申请人展示的拒绝理由",
+        "type": "string",
+        "default": "群人数已满"
+      },
       "reject_word_block": {
         "description": "命中进群黑词自动拉黑",
         "hint": "当用户因触发进群黑词而被拒绝进群时，自动拉黑该用户",
