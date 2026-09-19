@@ -335,33 +335,41 @@ class JoinHandle:
         comment: str | None = None,
         user_level: int | None = None,
         client=None,
-    ) -> tuple[bool | None, str]:
-        """判断是否让该用户入群，返回原因"""
+    ) -> tuple[bool | None, str, str]:
+        """判断是否让该用户入群，返回(是否通过, 展示文案, 结果代号)。
+
+        结果代号稳定不变，可用于免通知等逻辑判断；
+        展示文案可自定义或含动态内容，仅用于展示，不得用于逻辑判断。
+        代号：full群满 / allow白名单 / block黑名单 / level_hidden等级隐藏
+        / level_low等级过低 / empty_msg验证为空 / black_word命中黑词
+        / black_word_block命中黑词已拉黑 / white_word命中白词
+        / max_fail超次已拉黑 / no_match未命中驳回 / manual人工审核
+        """
         # -1.群人数已满时直接拒绝，白名单也不放行（可通过“群满拒绝”命令关闭）
         if await self.db.get(gid, "join_full_reject", True):
             if await self._is_group_full(gid, client):
                 full_msg = await self.db.get(gid, "join_full_msg", "群人数已满")
-                return False, full_msg or "群人数已满"
+                return False, full_msg or "群人数已满", "full"
 
         # 0.白名单用户直接通过
         use_global_allow = await self.db.get(gid, "use_global_allow", False)
         allow_ids = self.global_list.get("allow") if use_global_allow else await self.db.get(gid, "allow_ids", [])
         if uid in allow_ids:
-            return True, "白名单用户"
+            return True, "白名单用户", "allow"
 
         # 1.黑名单用户
         use_global_block = await self.db.get(gid, "use_global_block", False)
         block_ids = self.global_list.get("block") if use_global_block else await self.db.get(gid, "block_ids", [])
         if uid in block_ids:
-            return False, "黑名单用户"
+            return False, "黑名单用户", "block"
 
         # 2.QQ等级过低或隐藏
         if user_level is None:
-            return None, "QQ等级可能被隐藏，人工审核"
+            return None, "QQ等级可能被隐藏，人工审核", "level_hidden"
 
         min_level = await self.db.get(gid, "join_min_level")
         if min_level > 0 and user_level is not None and user_level < min_level:
-            return False, f"QQ等级过低({user_level}<{min_level})"
+            return False, f"QQ等级过低({user_level}<{min_level})", "level_low"
 
         if comment:
             # 提取答案部分
@@ -370,20 +378,20 @@ class JoinHandle:
                 comment = comment.split(keyword, 1)[1]
 
             if not comment and await self.db.get(gid, "join_no_match_msg", False):
-                return False, "验证信息为空"
+                return False, "验证信息为空", "empty_msg"
             lower_comment = comment.lower()
             # 3.命中进群黑词
             rkws = await self.db.get(gid, "join_reject_words", [])
             if any(rk.lower() in lower_comment for rk in rkws):
                 if await self.db.get(gid, "reject_word_block", False):
                     await self._add_to_block(gid, uid)
-                    return False, "命中进群黑词，已拉黑"
-                return False, "命中进群黑词"
+                    return False, "命中进群黑词，已拉黑", "black_word_block"
+                return False, "命中进群黑词", "black_word"
 
             # 4.命中进群白词
             akws = await self.db.get(gid, "join_accept_words", [])
             if akws and any(ak.lower() in lower_comment for ak in akws):
-                return True, "命中进群白词"
+                return True, "命中进群白词", "white_word"
 
         # 5.最大失败次数（内存防爆破，带24h过期）
         max_fail = await self.db.get(gid, "join_max_time", 3)
@@ -399,14 +407,14 @@ class JoinHandle:
                 await self._add_to_block(gid, uid)
                 self._fail.pop(key, None)
                 self._fail_time.pop(key, None)
-                return False, f"进群尝试次数已达上限({max_fail}次)，已拉黑"
+                return False, f"进群尝试次数已达上限({max_fail}次)，已拉黑", "max_fail"
 
         # 6.未命中白词时, 自动驳回
         if await self.db.get(gid, "join_no_match_reject"):
-            return False, "未命中进群关键词"
+            return False, "未命中进群关键词", "no_match"
 
         # 7.未命中进群关键词, 人工审核
-        return None, "人工审核"
+        return None, "人工审核", "manual"
 
     # ---------处理事件-----------------
 
@@ -436,7 +444,7 @@ class JoinHandle:
                 level = info.get("qqLevel") or info.get("level")
 
             # 判断是否通过（满群时直接拒绝，白名单也不放行）
-            approve, reason = await self.should_approve(gid, uid, comment, level, client=client)
+            approve, reason, code = await self.should_approve(gid, uid, comment, level, client=client)
             # 清理缓存
             if approve is True:
                 self._fail.pop(f"{gid}_{uid}", None)
@@ -451,8 +459,14 @@ class JoinHandle:
                         approve=approve,
                         reason="" if approve else reason,
                     )
-                    reasons = ["黑名单用户", "验证信息为空"]
-                    if not approve and reason in reasons:
+                    # 命中免通知类型时不发送通知（按结果代号判定，与展示文案解耦；自动批准/驳回均适用）
+                    silent = await self.db.get(
+                        gid,
+                        "join_silent_reasons",
+                        ["full", "allow", "white_word", "block", "empty_msg"],
+                    )
+                    silent = set(silent or [])
+                    if code in silent:
                         return
                     approve_msg = f"自动{'批准' if approve else '驳回'}，{reason}"
                 except Exception as e:

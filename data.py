@@ -96,6 +96,7 @@ class QQAdminDB:
         "join_no_match_reject": "未中白词拒绝",
         "join_full_reject": "群满自动拒绝",
         "join_full_msg": "群满拒绝文案",
+        "join_silent_reasons": "免通知类型",
         "reject_word_block": "命中黑词拉黑",
         "allow_ids": "进群白名单",
         "block_ids": "进群黑名单",

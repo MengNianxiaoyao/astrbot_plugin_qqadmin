@@ -33,104 +33,94 @@ function setByPath(target, path, value) {
   });
 }
 
+function buildCollapseShell(titleText, titleClassName = "section-title") {
+  const wrapper = document.createElement("section");
+  wrapper.className = "form-object is-collapsible";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "form-object-toggle";
+
+  const copy = document.createElement("span");
+  copy.className = "form-object-toggle-copy section-head";
+
+  const title = document.createElement("span");
+  title.className = titleClassName;
+  title.textContent = titleText;
+  copy.appendChild(title);
+
+  const action = document.createElement("span");
+  action.className = "form-object-toggle-action";
+
+  const body = document.createElement("div");
+  body.className = "form-object-body";
+
+  toggle.append(copy, action);
+  wrapper.append(toggle, body);
+  return { wrapper, toggle, copy, action, body };
+}
+
+function bindCollapseToggle(shell, isCollapsed, onToggle) {
+  const syncCollapsedState = () => {
+    const collapsed = isCollapsed();
+    shell.wrapper.classList.toggle("is-collapsed", collapsed);
+    shell.toggle.setAttribute("aria-expanded", String(!collapsed));
+    shell.action.textContent = collapsed ? "展开" : "收起";
+  };
+  shell.toggle.addEventListener("click", () => {
+    onToggle();
+    syncCollapsedState();
+  });
+  syncCollapsedState();
+}
+
 function buildField(path, key, schema, value, options = {}) {
   const type = schema.type || "string";
   const disabled = isDisabledPath(path, options);
 
   if (type === "object") {
-    const wrapper = document.createElement("section");
-    wrapper.className = "form-object";
-    const isCollapsible = options.collapsedObjectPaths.has(path);
-    if (disabled) {
-      wrapper.classList.add("is-disabled");
-    }
-    let bodyHost = wrapper;
-
-    if (isCollapsible) {
-      wrapper.classList.add("is-collapsible");
-
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "form-object-toggle";
-      toggle.disabled = disabled;
-
-      const copy = document.createElement("span");
-      copy.className = "form-object-toggle-copy section-head";
-
-      const title = document.createElement("span");
-      title.className = "section-title";
-      title.textContent = schema.description || key;
-      copy.appendChild(title);
-
+    if (options.collapsedObjectPaths.has(path)) {
+      const shell = buildCollapseShell(schema.description || key);
       if (schema.hint) {
         const hint = document.createElement("span");
         hint.className = "section-hint";
         hint.textContent = schema.hint;
-        copy.appendChild(hint);
+        shell.copy.appendChild(hint);
       }
-
-      const action = document.createElement("span");
-      action.className = "form-object-toggle-action";
-
+      shell.toggle.disabled = disabled;
       let collapsed = true;
-      const syncCollapsedState = () => {
-        wrapper.classList.toggle("is-collapsed", collapsed);
-        toggle.setAttribute("aria-expanded", String(!collapsed));
-        action.textContent = collapsed ? "展开" : "收起";
-      };
-
-      toggle.appendChild(copy);
-      toggle.appendChild(action);
-      toggle.addEventListener("click", () => {
+      bindCollapseToggle(shell, () => collapsed, () => {
         collapsed = !collapsed;
-        syncCollapsedState();
       });
-      wrapper.appendChild(toggle);
-
-      const body = document.createElement("div");
-      body.className = "form-object-body";
-      wrapper.appendChild(body);
-      bodyHost = body;
-
-      syncCollapsedState();
-    } else {
-      const header = document.createElement("div");
-      header.className = "section-head";
-
-      const title = document.createElement("div");
-      title.className = "section-title";
-      title.textContent = schema.description || key;
-      header.appendChild(title);
-
-      if (schema.hint) {
-        const hint = document.createElement("div");
-        hint.className = "section-hint";
-        hint.textContent = schema.hint;
-        header.appendChild(hint);
+      shell.body.appendChild(buildChildGrid(schema, value, path, options));
+      if (disabled) {
+        shell.wrapper.classList.add("is-disabled");
       }
-
-      wrapper.appendChild(header);
+      return shell.wrapper;
     }
 
-    const grid = document.createElement("div");
-    grid.className = "field-grid";
-    if (options.singleColumn) {
-      grid.classList.add("single-column");
+    const wrapper = document.createElement("section");
+    wrapper.className = "form-object";
+    if (disabled) {
+      wrapper.classList.add("is-disabled");
     }
-    const fragment = document.createDocumentFragment();
-    Object.entries(schema.items || {}).forEach(([childKey, childSchema]) => {
-      fragment.appendChild(
-        buildField(
-          pathJoin(path, childKey),
-          childKey,
-          childSchema,
-          value?.[childKey] ?? childSchema.default,
-          options
-        )
-      );
-    });
-    grid.appendChild(fragment);
-    bodyHost.appendChild(grid);
+    const header = document.createElement("div");
+    header.className = "section-head";
+
+    const title = document.createElement("div");
+    title.className = "section-title";
+    title.textContent = schema.description || key;
+    header.appendChild(title);
+
+    if (schema.hint) {
+      const hint = document.createElement("div");
+      hint.className = "section-hint";
+      hint.textContent = schema.hint;
+      header.appendChild(hint);
+    }
+
+    wrapper.appendChild(header);
+    wrapper.appendChild(buildChildGrid(schema, value, path, options));
     return wrapper;
   }
 
@@ -175,7 +165,8 @@ function buildField(path, key, schema, value, options = {}) {
     shell.appendChild(input);
     shell.appendChild(slider);
     control.appendChild(shell);
-  } else if (schema.options?.length) {
+  } else if ((type === "string" || type === "text") && schema.options?.length) {
+    // 仅字符串类型支持单选下拉；list+options 走下面的复选框组
     input = document.createElement("select");
     schema.options.forEach((option) => {
       const node = document.createElement("option");
@@ -198,10 +189,36 @@ function buildField(path, key, schema, value, options = {}) {
     }
     control.appendChild(input);
   } else if (type === "list") {
-    input = document.createElement("textarea");
-    input.value = Array.isArray(value) ? value.join("\n") : "";
-    input.placeholder = "每行一个条目，也支持粘贴后分行整理";
-    control.appendChild(input);
+    if (schema.options?.length) {
+      // 带固定选项的列表渲染为复选框组
+      const selected = new Set(
+        (Array.isArray(value) ? value : []).map((item) => String(item))
+      );
+      const group = document.createElement("div");
+      group.className = "check-group";
+      schema.options.forEach((option) => {
+        const optionValue = String(option?.value ?? option);
+        const optionLabel = option?.label ?? option?.description ?? optionValue;
+        const label = document.createElement("label");
+        label.className = "check-item";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.value = optionValue;
+        box.checked = selected.has(optionValue);
+        box.dataset.path = path;
+        box.dataset.type = "multiselect";
+        box.disabled = disabled;
+        label.append(box, document.createTextNode(optionLabel));
+        group.appendChild(label);
+      });
+      control.appendChild(group);
+      input = null;
+    } else {
+      input = document.createElement("textarea");
+      input.value = Array.isArray(value) ? value.join("\n") : "";
+      input.placeholder = "每行一个条目，也支持粘贴后分行整理";
+      control.appendChild(input);
+    }
   } else {
     const multiline =
       type === "text" ||
@@ -215,28 +232,28 @@ function buildField(path, key, schema, value, options = {}) {
     control.appendChild(input);
   }
 
-  input.dataset.path = path;
-  input.dataset.type = type;
-  input.disabled = disabled;
+  if (input) {
+    input.dataset.path = path;
+    input.dataset.type = type;
+    input.disabled = disabled;
+  }
   field.appendChild(control);
   return field;
 }
 
-export function renderSchemaFields(root, schema, values, options = {}) {
-  const normalizedOptions = normalizeOptions(options);
-  root.innerHTML = "";
+// 分组折叠状态（页面内保持，切换群不丢失）
+const collapsedSections = new Set();
 
+function buildFieldsGrid(entries, values, normalizedOptions) {
   const grid = document.createElement("div");
   grid.className = "field-grid";
   if (normalizedOptions.singleColumn) {
     grid.classList.add("single-column");
   }
-
-  const fragment = document.createDocumentFragment();
-  Object.entries(schema).forEach(([key, fieldSchema]) => {
-    fragment.appendChild(
+  entries.forEach(({ path, key, schema: fieldSchema }) => {
+    grid.appendChild(
       buildField(
-        key,
+        path,
         key,
         fieldSchema,
         values?.[key] ?? fieldSchema.default,
@@ -244,9 +261,91 @@ export function renderSchemaFields(root, schema, values, options = {}) {
       )
     );
   });
-  grid.appendChild(fragment);
+  return grid;
+}
 
-  root.appendChild(grid);
+function buildChildGrid(schema, value, path, options) {
+  return buildFieldsGrid(
+    Object.entries(schema.items || {}).map(([childKey, childSchema]) => ({
+      path: pathJoin(path, childKey),
+      key: childKey,
+      schema: childSchema,
+    })),
+    value,
+    options
+  );
+}
+
+function buildCollapsibleSection(section, entries, values, normalizedOptions) {
+  const shell = buildCollapseShell(section, "section-title section-group-title");
+  let collapsed = collapsedSections.has(section);
+  bindCollapseToggle(shell, () => collapsed, () => {
+    collapsed = !collapsed;
+    if (collapsed) {
+      collapsedSections.add(section);
+    } else {
+      collapsedSections.delete(section);
+    }
+  });
+  shell.body.appendChild(buildFieldsGrid(entries, values, normalizedOptions));
+  return shell.wrapper;
+}
+
+export function renderSchemaFields(root, schema, values, options = {}) {
+  const normalizedOptions = normalizeOptions(options);
+  root.innerHTML = "";
+
+  const fragment = document.createDocumentFragment();
+  const leadingKeys = new Set(normalizedOptions.leadingPaths || []);
+
+  // 置顶字段（如跟随开关）最先渲染
+  const leadingEntries = [];
+  // 按 section 分组展示，同组字段收敛在可折叠面板内
+  const groups = new Map();
+  Object.entries(schema).forEach(([key, fieldSchema]) => {
+    if (leadingKeys.has(key)) {
+      leadingEntries.push([key, fieldSchema]);
+      return;
+    }
+    const section = fieldSchema?.section || "";
+    if (!groups.has(section)) {
+      groups.set(section, []);
+    }
+    groups.get(section).push([key, fieldSchema]);
+  });
+
+  const toEntries = (list) =>
+    list.map(([key, fieldSchema]) => ({ path: key, key, schema: fieldSchema }));
+
+  if (leadingEntries.length) {
+    fragment.appendChild(buildFieldsGrid(toEntries(leadingEntries), values, normalizedOptions));
+  }
+  groups.forEach((entries, section) => {
+    // 无名组沉底，避免无 section 的对象项被顶到最前面
+    if (!section) {
+      return;
+    }
+    fragment.appendChild(
+      buildCollapsibleSection(section, toEntries(entries), values, normalizedOptions)
+    );
+  });
+  if (groups.has("")) {
+    fragment.appendChild(buildFieldsGrid(toEntries(groups.get("")), values, normalizedOptions));
+  }
+
+  root.appendChild(fragment);
+}
+
+function getByPath(target, path) {
+  const parts = path.split(".");
+  let cursor = target;
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== "object") {
+      return undefined;
+    }
+    cursor = cursor[part];
+  }
+  return cursor;
 }
 
 export function collectFormData(root) {
@@ -267,6 +366,17 @@ export function collectFormData(root) {
         .split(/\n+/)
         .map((item) => item.trim())
         .filter(Boolean);
+    } else if (type === "multiselect") {
+      // 同 path 的复选框累积为数组；先建空数组，保证全不选时也能提交 []
+      let arr = getByPath(payload, path);
+      if (!Array.isArray(arr)) {
+        arr = [];
+        setByPath(payload, path, arr);
+      }
+      if (node.checked) {
+        arr.push(node.value);
+      }
+      return; // forEach 回调内用 return 跳过，不能用 continue
     } else {
       value = node.value;
     }

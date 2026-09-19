@@ -353,7 +353,18 @@ class QQAdminPageService:
                 items = value
             else:
                 raise ValueError(f"invalid list value: {value}")
-            return [str(item).strip() for item in items if str(item).strip()]
+            result = [str(item).strip() for item in items if str(item).strip()]
+            # 带固定选项的列表（复选框组）只保留合法选项，防止脏数据
+            options = schema.get("options")
+            if options:
+                allowed = set()
+                for opt in options:
+                    if isinstance(opt, dict):
+                        allowed.add(str(opt.get("value", "")))
+                    else:
+                        allowed.add(str(opt))
+                result = [item for item in result if item in allowed]
+            return result
 
         options = schema.get("options")
         parsed = str(value or "")

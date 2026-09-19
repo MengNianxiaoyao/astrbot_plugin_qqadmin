@@ -514,6 +514,14 @@ img {
     line-height: 1.45;
 }
 
+/* 分组标题：字号更大、主题色强调，与组内选项拉开层级 */
+.section-group-title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--accent-dark);
+}
+
 .section-hint {
     margin-top: 0;
     font-size: 11px;
@@ -641,6 +649,30 @@ img {
     line-height: 1.6;
 }
 
+.check-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px 12px;
+    width: 100%;
+}
+
+.check-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.check-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
 .field textarea {
     min-height: 108px;
     resize: vertical;
@@ -749,6 +781,12 @@ img {
 .sticky-actions {
     justify-content: flex-end;
     flex-wrap: wrap;
+}
+
+#groupDetailPanel > #groupActions {
+    flex-shrink: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
 }
 
 .sticky-actions button:disabled {
