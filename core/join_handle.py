@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from aiocqhttp import CQHttp
@@ -17,6 +18,9 @@ from ..utils import (
     parse_cq_to_chain,
 )
 
+# 跨群申请记录有效期（秒）：QQ 进群申请过期后自动失效，不再阻拦其他群申请
+_APPLIED_TTL = 7 * 86400
+
 
 class JoinHandle:
     def __init__(self, config: PluginConfig, db: QQAdminDB, global_list: QQAdminGlobalList, group_cache):
@@ -28,6 +32,8 @@ class JoinHandle:
         self._fail_time: dict[str, float] = {}
         # 待人工审批的进群申请：{通知消息ID: {flag, gid, uid, nickname, ts}}
         self._pending: dict[str, dict] = {}
+        # 跨群申请记录：{uid: {gid: {flag, ts, name}}}，用于多群同时申请判定
+        self._applied: dict[str, dict[str, dict]] = {}
 
     async def _get_group_name(self, gid: str) -> str:
         if self._group_cache:
@@ -321,6 +327,100 @@ class JoinHandle:
 
         return False
 
+    async def _find_other_group(self, gid: str, uid: str, client=None) -> str | None:
+        """检查用户是否已在同账号管理的其他群中，返回群名，否返回 None。"""
+        if client is None or not self._group_cache:
+            return None
+        try:
+            groups = await self._group_cache.list_groups()
+        except Exception as e:
+            logger.debug(f"获取群列表失败，跳过多群检查: {e}")
+            return None
+        others = [
+            (str(g.get("group_id", "")), g.get("group_name", "") or str(g.get("group_id", "")))
+            for g in groups
+            if isinstance(g, dict) and str(g.get("group_id", "")) and str(g.get("group_id", "")) != gid
+        ]
+        if not others:
+            return None
+
+        async def _check(item: tuple[str, str]) -> str | None:
+            ngid, name = item
+            try:
+                try:
+                    info = await client.get_group_member_info(
+                        group_id=int(ngid), user_id=int(uid), no_cache=True
+                    )
+                except TypeError:
+                    info = await client.get_group_member_info(
+                        group_id=int(ngid), user_id=int(uid)
+                    )
+            except Exception:
+                return None
+            return name if info else None
+
+        for name in await asyncio.gather(*[_check(item) for item in others]):
+            if name:
+                return name
+        return None
+
+    def _register_application(self, uid: str, gid: str, flag: str, name: str):
+        """登记一次进群申请，并清理过期记录。"""
+        now = time.time()
+        expiry = now - _APPLIED_TTL
+        for u in list(self._applied):
+            groups = self._applied[u]
+            for g in [g for g, r in groups.items() if r.get("ts", 0) < expiry]:
+                groups.pop(g, None)
+            if not groups:
+                self._applied.pop(u, None)
+        # 简单限流，防止内存无限增长
+        total = sum(len(groups) for groups in self._applied.values())
+        if total > 1000:
+            oldest = sorted(
+                (r.get("ts", now), u, g)
+                for u, groups in self._applied.items()
+                for g, r in groups.items()
+            )
+            for _, u, g in oldest[: total - 1000]:
+                self._applied.get(u, {}).pop(g, None)
+        self._applied.setdefault(uid, {})[gid] = {"flag": flag, "ts": now, "name": name or gid}
+
+    def _drop_application(self, uid: str, gid: str):
+        """清除指定用户的指定群申请记录（申请已落定）。"""
+        groups = self._applied.get(uid)
+        if groups:
+            groups.pop(gid, None)
+            if not groups:
+                self._applied.pop(uid, None)
+
+    def _drop_application_by_flag(self, flag: str):
+        """按 flag 清除申请记录（人工审批落定后调用）。"""
+        if not flag:
+            return
+        for u in list(self._applied):
+            groups = self._applied[u]
+            for g in [g for g, r in groups.items() if r.get("flag") == flag]:
+                groups.pop(g, None)
+            if not groups:
+                self._applied.pop(u, None)
+
+    def _find_earlier_application(self, uid: str, gid: str) -> str | None:
+        """查找同一用户在其他群更早的待定申请，返回群名（无则返回 None）。"""
+        recs = self._applied.get(uid, {})
+        mine = recs.get(gid)
+        if not mine:
+            return None
+        my_key = (mine.get("ts", 0), gid)
+        earliest = None
+        for g, r in recs.items():
+            if g == gid:
+                continue
+            key = (r.get("ts", 0), g)
+            if key < my_key and (earliest is None or key < earliest[0]):
+                earliest = (key, r.get("name") or g)
+        return earliest[1] if earliest else None
+
     async def _add_to_block(self, gid: str, uid: str):
         """向群黑名单或全局黑名单添加用户（根据 use_global_block 判断）"""
         if await self.db.get(gid, "use_global_block", False):
@@ -340,16 +440,25 @@ class JoinHandle:
 
         结果代号稳定不变，可用于免通知等逻辑判断；
         展示文案可自定义或含动态内容，仅用于展示，不得用于逻辑判断。
-        代号：full群满 / allow白名单 / block黑名单 / level_hidden等级隐藏
-        / level_low等级过低 / empty_msg验证为空 / black_word命中黑词
+        代号：full群满 / allow白名单 / block黑名单 / multi_group多群加入
+        / level_hidden等级隐藏 / level_low等级过低 / empty_msg验证为空 / black_word命中黑词
         / black_word_block命中黑词已拉黑 / white_word命中白词
         / max_fail超次已拉黑 / no_match未命中驳回 / manual人工审核
         """
-        # -1.群人数已满时直接拒绝，白名单也不放行（可通过“群满拒绝”命令关闭）
+        # -1.群人数已满时直接拒绝（可通过“群满拒绝”命令关闭）
         if await self.db.get(gid, "join_full_reject", True):
             if await self._is_group_full(gid, client):
                 full_msg = await self.db.get(gid, "join_full_msg", "群人数已满")
                 return False, full_msg or "群人数已满", "full"
+
+        # -0.禁止多群加入（可通过配置关闭）
+        if await self.db.get(gid, "join_single_group", False):
+            other = await self._find_other_group(gid, uid, client)
+            if other:
+                return False, f"已加入其他群聊({other})", "multi_group"
+            earlier = self._find_earlier_application(uid, gid)
+            if earlier:
+                return False, f"已申请其他群聊({earlier})", "multi_group"
 
         # 0.白名单用户直接通过
         use_global_allow = await self.db.get(gid, "use_global_allow", False)
@@ -436,6 +545,8 @@ class JoinHandle:
                 return
             comment = raw.get("comment")
             flag = raw.get("flag", "")
+            # 登记本次申请，用于多群同时申请判定
+            self._register_application(uid, gid, flag, await self._get_group_name(gid))
             info = await client.get_stranger_info(user_id=int(uid))
             nickname = info.get("nickname") or "未知昵称"
             if info.get("isHideQQLevel"):
@@ -459,6 +570,8 @@ class JoinHandle:
                         approve=approve,
                         reason="" if approve else reason,
                     )
+                    # 自动落定后清除跨群申请记录（转人工的保留，继续阻拦其他群申请）
+                    self._drop_application(uid, gid)
                     # 命中免通知类型时不发送通知（按结果代号判定，与展示文案解耦；自动批准/驳回均适用）
                     silent = await self.db.get(
                         gid,
@@ -594,6 +707,8 @@ class JoinHandle:
         nickname = nickname or "该用户"
         try:
             await event.bot.set_group_add_request(flag=flag, sub_type="add", approve=approve, reason=extra)
+            # 人工落定后清除跨群申请记录
+            self._drop_application_by_flag(flag)
             if approve:
                 reply = f"已同意{nickname}进群"
             else:

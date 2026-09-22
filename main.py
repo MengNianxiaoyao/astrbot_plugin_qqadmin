@@ -423,10 +423,10 @@ class QQAdminPlugin(Star):
     async def clear_group_member(
         self,
         event: AiocqhttpMessageEvent,
-        inactive_days: int = 30,
-        under_level: int = 10,
+        inactive_days: int | None = None,
+        under_level: int | None = None,
     ):
-        "清理群友 <未发言天数> <群等级>"
+        "清理群友 [未发言天数] [群等级]，缺省用本群配置"
         await self.member.clear_group_member(event, inactive_days, under_level)
 
     @filter.command("上传群文件")

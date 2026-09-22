@@ -96,6 +96,7 @@ class QQAdminDB:
         "join_no_match_reject": "未中白词拒绝",
         "join_full_reject": "群满自动拒绝",
         "join_full_msg": "群满拒绝文案",
+        "join_single_group": "禁止多群加入",
         "join_silent_reasons": "免通知类型",
         "reject_word_block": "命中黑词拉黑",
         "allow_ids": "进群白名单",
@@ -108,6 +109,9 @@ class QQAdminDB:
         "custom_ban_words": "自定义违禁词",
         "word_ban_time": "禁词禁言时长",
         "spamming_ban_time": "刷屏禁言时长",
+        "clear_inactive_days": "清理未发言天数",
+        "clear_under_level": "清理等级阈值",
+        "clear_skip_allow": "清理跳过白名单",
         "use_global_allow": "使用全局白名单",
         "use_global_block": "使用全局黑名单",
     }

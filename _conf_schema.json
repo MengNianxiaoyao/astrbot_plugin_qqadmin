@@ -73,7 +73,7 @@
       "join_full_reject": {
         "description": "群满自动拒绝",
         "section": "进群审核",
-        "hint": "群人数已满时自动拒绝进群申请，白名单也不放行",
+        "hint": "群人数已满时自动拒绝进群申请",
         "type": "bool",
         "default": true
       },
@@ -83,6 +83,13 @@
         "hint": "群人数已满自动拒绝进群申请时，向申请人展示的拒绝理由",
         "type": "string",
         "default": "群人数已满"
+      },
+      "join_single_group": {
+        "description": "禁止多群加入",
+        "section": "进群审核",
+        "hint": "开启后，已加入或正在申请同账号管理的其他群聊的QQ号，进群时自动拒绝",
+        "type": "bool",
+        "default": false
       },
       "join_silent_reasons": {
         "description": "免通知类型",
@@ -94,6 +101,7 @@
           { "value": "allow", "label": "白名单通过" },
           { "value": "white_word", "label": "命中白词通过" },
           { "value": "block", "label": "黑名单" },
+          { "value": "multi_group", "label": "多群加入" },
           { "value": "empty_msg", "label": "验证为空" },
           { "value": "level_low", "label": "等级过低" },
           { "value": "black_word", "label": "命中黑词" },
@@ -217,6 +225,37 @@
           "step": 60
         },
         "default": 0
+      },
+      "clear_inactive_days": {
+        "description": "清理未发言天数",
+        "section": "清理群友",
+        "hint": "清理群友命令未指定天数时使用的默认值：超过此天数无发言且等级低于阈值的成员列入清理候选",
+        "type": "int",
+        "slider": {
+          "min": 0,
+          "max": 365,
+          "step": 1
+        },
+        "default": 30
+      },
+      "clear_under_level": {
+        "description": "清理等级阈值",
+        "section": "清理群友",
+        "hint": "清理群友命令未指定等级时使用的默认值：群等级低于此值的成员列入清理候选",
+        "type": "int",
+        "slider": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "default": 10
+      },
+      "clear_skip_allow": {
+        "description": "清理跳过白名单",
+        "section": "清理群友",
+        "hint": "开启后，清理群友时跳过白名单成员；关闭则白名单成员同样列入清理候选",
+        "type": "bool",
+        "default": true
       }
     }
   },
