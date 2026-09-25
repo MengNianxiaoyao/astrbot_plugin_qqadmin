@@ -115,9 +115,7 @@ class NoticeHandle:
                 continue
             try:
                 sender_id = notice.get("sender_id", "未知")
-                publish_time = datetime.fromtimestamp(
-                    int(notice.get("publish_time", 0))
-                ).strftime("%Y-%m-%d %H:%M:%S")
+                publish_time = datetime.fromtimestamp(int(notice.get("publish_time", 0))).strftime("%Y-%m-%d %H:%M:%S")
                 message = notice.get("message", {}) or {}
                 message_text = str(message.get("text", "")).replace("&#10;", "\n\n")
             except (TypeError, ValueError):

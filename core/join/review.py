@@ -94,13 +94,9 @@ class JoinReviewer:
             ngid, name = item
             try:
                 try:
-                    info = await client.get_group_member_info(
-                        group_id=int(ngid), user_id=int(uid), no_cache=True
-                    )
+                    info = await client.get_group_member_info(group_id=int(ngid), user_id=int(uid), no_cache=True)
                 except TypeError:
-                    info = await client.get_group_member_info(
-                        group_id=int(ngid), user_id=int(uid)
-                    )
+                    info = await client.get_group_member_info(group_id=int(ngid), user_id=int(uid))
             except Exception:
                 return None
             return name if info else None

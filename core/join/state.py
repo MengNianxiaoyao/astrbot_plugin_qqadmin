@@ -45,11 +45,7 @@ class JoinState:
         # 简单限流，防止内存无限增长
         total = sum(len(groups) for groups in self.applied.values())
         if total > 1000:
-            oldest = sorted(
-                (r.get("ts", now), u, g)
-                for u, groups in self.applied.items()
-                for g, r in groups.items()
-            )
+            oldest = sorted((r.get("ts", now), u, g) for u, groups in self.applied.items() for g, r in groups.items())
             for _, u, g in oldest[: total - 1000]:
                 self.applied.get(u, {}).pop(g, None)
         self.applied.setdefault(uid, {})[gid] = {"flag": flag, "ts": now, "name": name or gid}
