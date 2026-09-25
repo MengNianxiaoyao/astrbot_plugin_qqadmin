@@ -12,6 +12,7 @@ import { createThemeController } from "./theme.js";
 const bridge = window.AstrBotPluginPage;
 const DEFAULT_GROUP_ID = "__default__";
 const COLLAPSED_GROUP_OBJECT_PATHS = new Set(["perms"]);
+const EXPANDED_GROUP_OBJECT_PATHS = new Set(["vote_ban"]);
 const FOLLOW_DEFAULT_KEY = "follow_default";
 
 let api = null;
@@ -39,9 +40,11 @@ const els = {
   globalListContent: document.getElementById("globalListContent"),
   globalBanWordsPanel: document.getElementById("globalBanWordsPanel"),
   globalListDisplay: document.getElementById("globalListDisplay"),
+  globalListSearchInput: document.getElementById("globalListSearchInput"),
   globalListBatchInput: document.getElementById("globalListBatchInput"),
   overwriteGlobalListBtn: document.getElementById("overwriteGlobalListBtn"),
   appendGlobalListBtn: document.getElementById("appendGlobalListBtn"),
+  deleteSelectedListBtn: document.getElementById("deleteSelectedListBtn"),
   groupActions: document.getElementById("groupActions"),
   globalBanWordsDisplay: document.getElementById("globalBanWordsDisplay"),
   builtinBanWordsDisplay: document.getElementById("builtinBanWordsDisplay"),
@@ -53,12 +56,18 @@ const els = {
   restoreBuiltinBanWordsBtn: document.getElementById("restoreBuiltinBanWordsBtn"),
   importSelectedBanWordsBtn: document.getElementById("importSelectedBanWordsBtn"),
   groupListPanel: document.getElementById("groupListPanel"),
+  groupSearchWrap: document.getElementById("groupSearchWrap"),
+  globalSidePanel: document.getElementById("globalSidePanel"),
+  globalListSideActions: document.getElementById("globalListSideActions"),
+  globalBanWordsSideActions: document.getElementById("globalBanWordsSideActions"),
   workspaceGrid: document.querySelector(".workspace-grid"),
   viewTabs: document.querySelectorAll(".view-tab"),
   globalListTabs: document.querySelectorAll(".global-list-tab"),
 };
 
 let currentGlobalType = "allow";
+let currentView = "group";
+let globalListKeyword = "";
 let globalListData = { allow: [], block: [] };
 let globalBanWordsData = { global: [], builtin: [] };
 
@@ -117,6 +126,9 @@ function updateGroupActionState() {
 }
 
 function applyGroupList(groups) {
+  if (!bootstrapData) {
+    return;
+  }
   allGroups = Array.isArray(groups) ? groups : [];
   bootstrapData.groups = allGroups;
   filterAndRenderGroups();
@@ -146,6 +158,10 @@ function filterAndRenderGroups() {
     currentGroupId: currentGroup?.group_id || "",
     onSelect: async (groupId) => {
       try {
+        // 全局视图下选群视为回到群配置，避免群名覆盖全局标题
+        if (currentView === "global") {
+          switchView("group");
+        }
         await switchGroup(groupId);
       } catch (error) {
         showToast(error.message, "error");
@@ -195,9 +211,12 @@ function renderGroupForm(groupPayload) {
     {
       singleColumn: true,
       collapsedObjectPaths: COLLAPSED_GROUP_OBJECT_PATHS,
+      expandedObjectPaths: EXPANDED_GROUP_OBJECT_PATHS,
       isFieldDisabled: isGroupFieldDisabled,
       // 跟随开关置顶；投票禁言/权限管理等无分组项沉底
       leadingPaths: [FOLLOW_DEFAULT_KEY],
+      // 面板分组定义表（组名/组说明/成员/排序），来自 schema
+      groups: bootstrapData.schema.groups || {},
     }
   );
   bindFollowDefaultToggle();
@@ -354,16 +373,26 @@ async function resetGroupConfig() {
 
 function switchView(view) {
   const isGlobal = view === "global";
+  currentView = view;
 
   els.workspaceGrid.classList.toggle("global-list-mode", isGlobal);
   els.globalListPanel.classList.toggle("is-hidden", !isGlobal);
+  // 侧边栏按视图切换：群视图显示搜索+群导航，全局视图显示全局控制面板
+  els.groupSearchWrap?.classList.toggle("is-hidden", isGlobal);
+  els.groupListPanel.classList.toggle("is-hidden", isGlobal);
+  els.globalSidePanel?.classList.toggle("is-hidden", !isGlobal);
+  updateGlobalSideActions();
   els.groupForm.style.display = isGlobal ? "none" : "";
   els.groupActions.style.display = isGlobal ? "none" : "";
   els.currentGroupName.textContent = isGlobal
     ? "全局配置"
     : currentGroup?.group_info?.group_name || "未选择群";
   if (els.currentGroupMeta) {
-    els.currentGroupMeta.textContent = "";
+    if (!isGlobal && currentGroup) {
+      renderGroupDetailHeader(els, currentGroup);
+    } else {
+      els.currentGroupMeta.textContent = "";
+    }
   }
 
   els.viewTabs.forEach((tab) => {
@@ -377,11 +406,30 @@ function switchView(view) {
   }
 }
 
+function updateGlobalSideActions() {
+  // 仅全局视图显示侧边栏操作按钮：黑白名单页签显示名单按钮，禁词页签显示禁词按钮
+  const isListTab = currentGlobalType === "allow" || currentGlobalType === "block";
+  const isBanWordsTab = currentGlobalType === "ban-words";
+  els.globalListSideActions?.classList.toggle("is-hidden", currentView !== "global" || !isListTab);
+  els.globalBanWordsSideActions?.classList.toggle("is-hidden", currentView !== "global" || !isBanWordsTab);
+}
+
 function switchGlobalTab(type) {
   const isBanWords = type === "ban-words";
   currentGlobalType = type;
+  const titles = { allow: "全局白名单", block: "全局黑名单", "ban-words": "全局禁词" };
+  els.currentGroupName.textContent = titles[type] || "全局配置";
+  if (els.currentGroupMeta) {
+    els.currentGroupMeta.textContent = "";
+  }
   els.globalListContent.classList.toggle("is-hidden", isBanWords);
   els.globalBanWordsPanel.classList.toggle("is-hidden", !isBanWords);
+  updateGlobalSideActions();
+  // 切换页签时清空名单搜索
+  globalListKeyword = "";
+  if (els.globalListSearchInput) {
+    els.globalListSearchInput.value = "";
+  }
   if (isBanWords) {
     loadGlobalBanWords();
   } else {
@@ -398,19 +446,23 @@ async function loadGlobalBanWords() {
   }
 }
 
-function renderItemList({ container, items, emptyText, checkClass = "", actionLabel, onAction }) {
+function renderItemList({ container, items, emptyText, checkClass = "", actionLabel, onAction, countText = "" }) {
   container.innerHTML = "";
 
   const count = document.createElement("div");
   count.className = "global-list-count";
-  count.textContent = `共 ${items.length} 个`;
+  count.textContent = countText || `共 ${items.length} 个`;
   container.appendChild(count);
+
+  const body = document.createElement("div");
+  body.className = "global-list-scroll";
+  container.appendChild(body);
 
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "global-list-empty";
     empty.textContent = emptyText;
-    container.appendChild(empty);
+    body.appendChild(empty);
     return;
   }
 
@@ -425,7 +477,7 @@ function renderItemList({ container, items, emptyText, checkClass = "", actionLa
       });
     });
     selectAll.append(selectAllInput, document.createTextNode("全选"));
-    container.appendChild(selectAll);
+    body.appendChild(selectAll);
   }
 
   const list = document.createElement("div");
@@ -455,7 +507,7 @@ function renderItemList({ container, items, emptyText, checkClass = "", actionLa
     row.append(label, action);
     list.appendChild(row);
   });
-  container.appendChild(list);
+  body.appendChild(list);
 }
 
 function renderGlobalBanWords() {
@@ -597,18 +649,53 @@ async function loadGlobalLists() {
 }
 
 function renderGlobalList() {
+  const all = globalListData[currentGlobalType] || [];
+  const keyword = globalListKeyword.trim();
+  const shown = all
+    .map((uid, index) => ({ uid, index }))
+    .filter((entry) => !keyword || String(entry.uid).includes(keyword));
   renderItemList({
     container: els.globalListDisplay,
-    items: globalListData[currentGlobalType] || [],
-    emptyText: "当前名单为空。",
+    items: shown.map((entry) => entry.uid),
+    emptyText: keyword ? "没有匹配的QQ号。" : "当前名单为空。",
+    countText: keyword ? `共 ${all.length} 个 · 筛选出 ${shown.length} 个` : "",
+    checkClass: "global-list-check",
     actionLabel: "删除",
-    onAction: async (uid, index, items) => {
+    onAction: async (uid, shownIndex) => {
       const ok = await showConfirm(`确定删除 ${uid} 吗？`);
       if (!ok) return;
-      globalListData[currentGlobalType] = items.filter((_, i) => i !== index);
-      renderGlobalList();
+      const next = all.filter((_, i) => i !== shown[shownIndex].index);
+      try {
+        await api.safePost("settings/global-list", { type: currentGlobalType, items: next });
+        globalListData[currentGlobalType] = next;
+        renderGlobalList();
+        showToast("已删除");
+      } catch (error) {
+        showToast(error.message, "error");
+      }
     },
   });
+}
+
+async function removeSelectedGlobalList() {
+  const values = getCheckedValues(els.globalListDisplay, "global-list-check", "请先选择要删除的QQ号");
+  if (!values) {
+    return;
+  }
+  const ok = await showConfirm(`确定删除选中的 ${values.length} 个QQ号吗？`);
+  if (!ok) {
+    return;
+  }
+  const del = new Set(values);
+  const next = (globalListData[currentGlobalType] || []).filter((uid) => !del.has(uid));
+  try {
+    await api.safePost("settings/global-list", { type: currentGlobalType, items: next });
+    globalListData[currentGlobalType] = next;
+    renderGlobalList();
+    showToast(`已删除 ${values.length} 个`);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 function showConfirm(message) {
@@ -714,7 +801,8 @@ function bindEvents() {
     try {
       await refreshGroups();
       scheduleGroupRoleSync({ force: true });
-      if (currentGroup?.group_id) {
+      // 全局视图下不重载群配置，避免群名覆盖全局标题
+      if (currentView === "group" && currentGroup?.group_id) {
         await loadGroupConfig(currentGroup.group_id);
       }
       showToast("群列表已同步");
@@ -753,6 +841,15 @@ function bindEvents() {
     groupSearchTimer = setTimeout(filterAndRenderGroups, 150);
   });
 
+  let globalListSearchTimer = null;
+  els.globalListSearchInput?.addEventListener("input", () => {
+    clearTimeout(globalListSearchTimer);
+    globalListSearchTimer = setTimeout(() => {
+      globalListKeyword = els.globalListSearchInput.value;
+      renderGlobalList();
+    }, 150);
+  });
+
   els.groupForm.addEventListener("input", markFormDirty);
   els.groupForm.addEventListener("change", markFormDirty);
 
@@ -784,6 +881,14 @@ function bindEvents() {
   els.appendGlobalListBtn.addEventListener("click", async () => {
     try {
       await appendGlobalList();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
+  });
+
+  els.deleteSelectedListBtn.addEventListener("click", async () => {
+    try {
+      await removeSelectedGlobalList();
     } catch (error) {
       showToast(error.message, "error");
     }

@@ -160,16 +160,21 @@ class QQGroupInfoCache:
         group_clients: dict[str, Any],
         group_ids: set[str],
     ) -> None:
-        for group_id in sorted(group_ids):
-            detail, client = await self._fetch_group_detail(
-                group_id,
-                preferred_client=group_clients.get(group_id),
-            )
+        semaphore = asyncio.Semaphore(8)
+
+        async def _load(group_id: str) -> None:
+            async with semaphore:
+                detail, client = await self._fetch_group_detail(
+                    group_id,
+                    preferred_client=group_clients.get(group_id),
+                )
             if not detail:
-                continue
+                return
             merged_groups[group_id].update(detail)
             if client is not None:
                 group_clients[group_id] = client
+
+        await asyncio.gather(*(_load(group_id) for group_id in sorted(group_ids)))
 
     async def _fetch_group_detail(
         self,

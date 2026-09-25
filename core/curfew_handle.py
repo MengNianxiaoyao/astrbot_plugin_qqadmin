@@ -252,8 +252,9 @@ class CurfewHandle:
 
         # client 直接获取 bot_id
         try:
-            login_data = await client.get_login_info()
-            bot_id = str(login_data.get("user_id"))
+            login_data = await client.get_login_info() or {}
+            user_id = login_data.get("user_id")
+            bot_id = str(user_id) if user_id is not None else None
         except Exception:
             pass
 

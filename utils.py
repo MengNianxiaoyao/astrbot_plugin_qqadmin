@@ -36,6 +36,20 @@ async def get_nickname(event: AiocqhttpMessageEvent, user_id: int | str) -> str:
     return info.get("card") or info.get("nickname") or info.get("nick") or str(user_id)
 
 
+async def resolve_allow_ids(db, global_list, gid: str) -> list:
+    """取本群进群白名单（全局开关开启时返回全局白名单）"""
+    if await db.get(gid, "use_global_allow", False):
+        return list(global_list.get("allow"))
+    return await db.get(gid, "allow_ids", [])
+
+
+async def resolve_block_ids(db, global_list, gid: str) -> list:
+    """取本群进群黑名单（全局开关开启时返回全局黑名单）"""
+    if await db.get(gid, "use_global_block", False):
+        return list(global_list.get("block"))
+    return await db.get(gid, "block_ids", [])
+
+
 def get_ats(event: AiocqhttpMessageEvent) -> list[str]:
     """获取被at者们的id列表"""
     return [str(seg.qq) for seg in event.get_messages() if (isinstance(seg, At) and str(seg.qq) != event.get_self_id())]
@@ -134,7 +148,11 @@ def extract_image_url(chain: list[BaseMessageComponent]) -> str | None:
 
 
 def parse_bool(mode: str | bool | None, default: bool = False):
-    """解析布尔值"""
+    """解析布尔值；输入为 None 时返回 None，调用方可据此区分查看与设置"""
+    if mode is None:
+        return None
+    if isinstance(mode, bool):
+        return mode
     mode = str(mode).strip().lower()
     match mode:
         case "开" | "开启" | "启用" | "on" | "true" | "1" | "是" | "真":

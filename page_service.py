@@ -34,6 +34,8 @@ class QQAdminPageService:
         self.global_list = global_list
         self.banpro = banpro
         self.schema = self._load_schema(cfg.plugin_dir / "_conf_schema.json")
+        # 失效投票计数：单次 API 抖动不删库，连续多次判定失效才清理
+        self._stale_votes: dict[str, int] = {}
 
     @property
     def group_schema(self) -> dict[str, Any]:
@@ -48,10 +50,26 @@ class QQAdminPageService:
             **self._get_group_overlay_schema(),
         }
 
+    def get_group_table(self) -> dict[str, dict[str, Any]]:
+        """面板分组定义表：{组名: {hint, items}}，组顺序即面板展示顺序。"""
+        groups = self.schema.get("groups", {})
+        items = groups.get("items", {}) if isinstance(groups, dict) else {}
+        table: dict[str, dict[str, Any]] = {}
+        for name, entry in items.items():
+            if not isinstance(entry, dict):
+                continue
+            members = entry.get("default", [])
+            table[str(name)] = {
+                "hint": entry.get("description", ""),
+                "items": [str(m) for m in members] if isinstance(members, list) else [],
+            }
+        return table
+
     async def get_bootstrap_payload(self) -> dict[str, Any]:
         return {
             "schema": {
                 "group": self.group_schema,
+                "groups": self.get_group_table(),
             },
             "groups": await self.list_groups(),
         }
@@ -88,7 +106,7 @@ class QQAdminPageService:
 
         for group in groups:
             group_id = str(group.get("group_id", "")).strip()
-            if self._should_delete_group(group):
+            if self._is_stale_group(group):
                 stale_group_ids.append(group_id)
                 continue
             result.append(
@@ -114,7 +132,7 @@ class QQAdminPageService:
         group_id = self._normalize_group_id(group_id)
         follow_default = self.db.is_group_follow_default(group_id)
         group_info = await self.group_cache.get_group(group_id, force=force)
-        if self._should_delete_group(group_info):
+        if self._is_stale_group(group_info):
             await self._delete_group_data(group_id)
             raise ValueError(f"group {group_id} no longer exists and has been deleted")
         return {
@@ -150,7 +168,7 @@ class QQAdminPageService:
         group_info = self.group_cache.get_cached_group(group_id)
         if group_info is None:
             group_info = await self.group_cache.get_group(group_id, force=False)
-        if self._should_delete_group(group_info):
+        if self._is_stale_group(group_info):
             await self._delete_group_data(group_id)
             raise ValueError(f"group {group_id} no longer exists and has been deleted")
 
@@ -255,19 +273,30 @@ class QQAdminPageService:
         await self.db.delete_group(normalized_group_id)
         self.group_cache.remove_group(normalized_group_id)
 
-    @staticmethod
-    def _should_delete_group(group_info: dict[str, Any]) -> bool:
+    # 连续判定失效多少次才清理，避免单次 API 抖动误删
+    _STALE_VOTES_REQUIRED = 2
+
+    def _is_stale_group(self, group_info: dict[str, Any]) -> bool:
         group_id = str(group_info.get("group_id", "")).strip()
         if not group_id or group_id == DEFAULT_GROUP_ID:
             return False
-        # 仅当非 live 来源且人数为 0 时视为失效，避免 API 抖动误删
+        # live 来源或人数有效 → 存活，清除投票
         if group_info.get("source") == "live":
+            self._stale_votes.pop(group_id, None)
             return False
         try:
             member_count = int(group_info.get("member_count", 0))
         except (TypeError, ValueError):
             member_count = 0
-        return member_count <= 0 and group_info.get("source") != "live"
+        if member_count > 0:
+            self._stale_votes.pop(group_id, None)
+            return False
+        votes = self._stale_votes.get(group_id, 0) + 1
+        if votes >= self._STALE_VOTES_REQUIRED:
+            self._stale_votes.pop(group_id, None)
+            return True
+        self._stale_votes[group_id] = votes
+        return False
 
     def _apply_group_level_updates(self, updated: dict[str, Any]) -> None:
         default_fields = self.schema.get("default", {}).get("items", {})

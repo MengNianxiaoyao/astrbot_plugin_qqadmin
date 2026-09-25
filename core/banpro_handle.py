@@ -256,7 +256,12 @@ class BanproHandle:
         ban_time = self.cfg.get_ban_time_with_range(group_config.get("random_ban_time"), ban_time)
 
         if group_id in self.vote_cache:
-            await event.send(event.plain_result("群内已有正在进行的禁言投票"))
+            record = self.vote_cache[group_id]
+            if record.get("target") == target_id:
+                await event.send(event.plain_result("已存在对该用户的禁言投票"))
+            else:
+                nickname0 = await get_nickname(event, record["target"])
+                await event.send(event.plain_result(f"群内已有对 {nickname0} 正在进行的禁言投票"))
             return
 
         vote_ban = group_config.get("vote_ban", {})
@@ -264,13 +269,14 @@ class BanproHandle:
         threshold = int(vote_ban.get("threshold", self.cfg.vote_ban.threshold))
 
         expire_at = time.time() + ttl
-        self.vote_cache[group_id] = {
+        record = {
             "target": target_id,
             "votes": {},
             "ban_time": ban_time,
             "expire": expire_at,
             "threshold": threshold,
         }
+        self.vote_cache[group_id] = record
 
         nickname = await get_nickname(event, target_id)
         await event.send(event.plain_result(f"已发起对 {nickname} 的禁言投票(禁言{ban_time}秒)，输入“赞同禁言/反对禁言”进行表态，{ttl}秒后结算"))
@@ -278,8 +284,8 @@ class BanproHandle:
         # ===== 新增：定时结算逻辑 =====
         async def settle_vote():
             await asyncio.sleep(ttl)
-            record = self.vote_cache.get(group_id)
-            if not record:
+            current = self.vote_cache.get(group_id)
+            if current is not record:
                 return  # 已被提前结算
             votes = list(record["votes"].values())
             agree_count = sum(votes)
@@ -300,7 +306,7 @@ class BanproHandle:
             else:
                 await event.send(event.plain_result(f"投票时间到！禁言被否决，{nickname2}安全了"))
             # 清理投票记录
-            del self.vote_cache[group_id]
+            self.vote_cache.pop(group_id, None)
 
         asyncio.create_task(settle_vote())
 
@@ -341,7 +347,7 @@ class BanproHandle:
                 logger.error(f"bot在群{group_id}权限不足，禁言失败")
             finally:
                 # 清理记录（定时任务见前面会检测到记录已删除并直接返回）
-                del self.vote_cache[group_id]
+                self.vote_cache.pop(group_id, None)
             return
 
         # 移除“反对阈值提前否决”，仅保留赞同阈值提前通过；否则等待 TTL 多数决，避免少数反对劫持

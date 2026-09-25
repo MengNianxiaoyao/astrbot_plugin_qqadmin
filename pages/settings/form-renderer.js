@@ -4,9 +4,11 @@ function pathJoin(prefix, key) {
 
 function normalizeOptions(options = {}) {
   const raw = options.collapsedObjectPaths;
+  const rawExpanded = options.expandedObjectPaths;
   return {
     ...options,
     collapsedObjectPaths: raw instanceof Set ? raw : new Set(raw),
+    expandedObjectPaths: rawExpanded instanceof Set ? rawExpanded : new Set(rawExpanded),
   };
 }
 
@@ -79,8 +81,11 @@ function buildField(path, key, schema, value, options = {}) {
   const disabled = isDisabledPath(path, options);
 
   if (type === "object") {
-    if (options.collapsedObjectPaths.has(path)) {
-      const shell = buildCollapseShell(schema.description || key);
+    const isCollapsible =
+      options.collapsedObjectPaths.has(path) || options.expandedObjectPaths.has(path);
+    if (isCollapsible) {
+      // 对象即独立设置组：标题使用组级高亮样式
+      const shell = buildCollapseShell(schema.description || key, "section-title section-group-title");
       if (schema.hint) {
         const hint = document.createElement("span");
         hint.className = "section-hint";
@@ -88,7 +93,7 @@ function buildField(path, key, schema, value, options = {}) {
         shell.copy.appendChild(hint);
       }
       shell.toggle.disabled = disabled;
-      let collapsed = true;
+      let collapsed = !options.expandedObjectPaths.has(path);
       bindCollapseToggle(shell, () => collapsed, () => {
         collapsed = !collapsed;
       });
@@ -278,6 +283,13 @@ function buildChildGrid(schema, value, path, options) {
 
 function buildCollapsibleSection(section, entries, values, normalizedOptions) {
   const shell = buildCollapseShell(section, "section-title section-group-title");
+  const hintText = normalizedOptions.groups?.[section]?.hint;
+  if (hintText) {
+    const hint = document.createElement("span");
+    hint.className = "section-hint";
+    hint.textContent = hintText;
+    shell.copy.appendChild(hint);
+  }
   let collapsed = collapsedSections.has(section);
   bindCollapseToggle(shell, () => collapsed, () => {
     collapsed = !collapsed;
@@ -297,17 +309,31 @@ export function renderSchemaFields(root, schema, values, options = {}) {
 
   const fragment = document.createDocumentFragment();
   const leadingKeys = new Set(normalizedOptions.leadingPaths || []);
+  const groupTable = normalizedOptions.groups || {};
 
   // 置顶字段（如跟随开关）最先渲染
   const leadingEntries = [];
-  // 按 section 分组展示，同组字段收敛在可折叠面板内
+  // 按分组表归组（表内顺序即展示顺序）；表外字段沉底直接渲染
+  const memberOf = {};
+  Object.keys(groupTable).forEach((name) => {
+    ((groupTable[name] || {}).items || []).forEach((key) => {
+      if (!(key in memberOf)) {
+        memberOf[key] = name;
+      }
+    });
+  });
   const groups = new Map();
+  const leftovers = [];
   Object.entries(schema).forEach(([key, fieldSchema]) => {
     if (leadingKeys.has(key)) {
       leadingEntries.push([key, fieldSchema]);
       return;
     }
-    const section = fieldSchema?.section || "";
+    const section = memberOf[key];
+    if (!section) {
+      leftovers.push([key, fieldSchema]);
+      return;
+    }
     if (!groups.has(section)) {
       groups.set(section, []);
     }
@@ -320,17 +346,31 @@ export function renderSchemaFields(root, schema, values, options = {}) {
   if (leadingEntries.length) {
     fragment.appendChild(buildFieldsGrid(toEntries(leadingEntries), values, normalizedOptions));
   }
-  groups.forEach((entries, section) => {
-    // 无名组沉底，避免无 section 的对象项被顶到最前面
-    if (!section) {
+  Object.keys(groupTable).forEach((section) => {
+    const entries = groups.get(section);
+    if (!entries || !entries.length) {
+      return;
+    }
+    // 单对象成组：直接渲染对象，标题改用组名（用对象自带的 hint，避免重复）
+    if (entries.length === 1 && entries[0][1]?.type === "object") {
+      const [key, fieldSchema] = entries[0];
+      fragment.appendChild(
+        buildField(
+          key,
+          key,
+          { ...fieldSchema, description: section },
+          values?.[key] ?? fieldSchema.default,
+          normalizedOptions
+        )
+      );
       return;
     }
     fragment.appendChild(
       buildCollapsibleSection(section, toEntries(entries), values, normalizedOptions)
     );
   });
-  if (groups.has("")) {
-    fragment.appendChild(buildFieldsGrid(toEntries(groups.get("")), values, normalizedOptions));
+  if (leftovers.length) {
+    fragment.appendChild(buildFieldsGrid(toEntries(leftovers), values, normalizedOptions));
   }
 
   root.appendChild(fragment);

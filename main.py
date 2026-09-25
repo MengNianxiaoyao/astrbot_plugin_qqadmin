@@ -42,10 +42,10 @@ class QQAdminPlugin(Star):
         self.global_list = QQAdminGlobalList(self.cfg.data_dir)
         self.normal = NormalHandle(self.cfg, self.db, self.global_list)
         self.recall = RecallHandle(self.cfg, self.db)
-        self.notice = NoticeHandle(self, self.cfg)
+        self.notice = NoticeHandle(self.cfg)
         self.banpro = BanproHandle(self.cfg, self.db)
         self.join = JoinHandle(self.cfg, self.db, self.global_list, self.group_cache)
-        self.member = MemberHandle(self)
+        self.member = MemberHandle(self.db, self.global_list, self.text_to_image)
         self.file = FileHandle(self.cfg)
         self.curfew = CurfewHandle(self.context, self.cfg)
         self.web = QQAdminWebController(context, self.cfg, self.db, self.group_cache, self.global_list, self.banpro)
@@ -92,7 +92,10 @@ class QQAdminPlugin(Star):
     async def reset_config(self, event: AiocqhttpMessageEvent, group_id: str | int | None = None):
         """群管重置 <群号 | all>"""
         gid = group_id or event.get_group_id()
-        if gid == "all" and event.is_admin():
+        if gid == "all":
+            if not event.is_admin():
+                yield event.plain_result("仅超管可重置所有群的群管配置")
+                return
             await self.db.reset_to_default()
             yield event.plain_result("已重置所有群的群管配置")
         else:
@@ -122,7 +125,7 @@ class QQAdminPlugin(Star):
     @perm_required(PermLevel.ADMIN, perm_key="set_group_card")
     async def set_group_card(self, event: AiocqhttpMessageEvent, target_card: str | int = ""):
         """改名 <新昵称> @user"""
-        if result := await self.normal.set_group_card(event, target_id=target_card):
+        if result := await self.normal.set_group_card(event, target_card=target_card):
             yield event.plain_result(result)
 
     @filter.command("改头衔", alias={"头衔"})
