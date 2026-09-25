@@ -503,11 +503,20 @@ function renderItemList({ container, items, emptyText, checkClass = "", actionLa
     action.type = "button";
     action.className = "global-list-row-del";
     action.textContent = actionLabel;
-    action.addEventListener("click", () => onAction(item, index, items));
+    action.dataset.actionIndex = String(index);
     row.append(label, action);
     list.appendChild(row);
   });
   body.appendChild(list);
+  // 事件委托：整表共用一个监听器，避免逐行绑定
+  list.addEventListener("click", (e) => {
+    const btn = e.target instanceof Element ? e.target.closest("[data-action-index]") : null;
+    if (!btn) {
+      return;
+    }
+    const index = Number(btn.dataset.actionIndex);
+    onAction(items[index], index, items);
+  });
 }
 
 function renderGlobalBanWords() {

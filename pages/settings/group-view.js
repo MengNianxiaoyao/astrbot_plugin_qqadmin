@@ -64,6 +64,7 @@ export function renderGroupCards({
       "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'><rect width='96' height='96' rx='24' fill='%23e8c49a'/><text x='48' y='56' text-anchor='middle' font-size='34' fill='%23824f1f' font-family='Arial'>D</text></svg>";
     avatar.alt = `${group.group_name} 群头像`;
     avatar.loading = "lazy";
+    avatar.decoding = "async";
     card.appendChild(avatar);
 
     const main = document.createElement("div");
@@ -102,12 +103,17 @@ export function renderGroupCards({
 
     card.appendChild(main);
 
-    card.addEventListener("click", () => {
-      onSelect?.(group.group_id);
-    });
-
     fragment.appendChild(card);
   });
+
+  // 事件委托：整表共用一个点击监听器，避免逐卡绑定
+  root.onclick = (e) => {
+    const card = e.target instanceof Element ? e.target.closest(".group-card") : null;
+    if (!card || !root.contains(card)) {
+      return;
+    }
+    onSelect?.(card.dataset.groupId);
+  };
 
   root.appendChild(fragment);
 }

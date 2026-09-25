@@ -224,6 +224,8 @@ textarea {
     cursor: pointer;
     position: relative;
     transition: border-color 0.15s, box-shadow 0.15s;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 62px;
 }
 
 .group-card:hover {
@@ -341,15 +343,6 @@ textarea {
     text-overflow: ellipsis;
 }
 
-.group-badge-default {
-    font-size: 11px;
-    color: var(--accent-dark);
-    background: var(--accent-soft);
-    border-radius: 20px;
-    padding: 1px 8px;
-    flex-shrink: 0;
-}
-
 /* ============ 主区 ============ */
 
 .main {
@@ -411,11 +404,6 @@ textarea {
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 18px;
-}
-
-/* 全局模式钩子（视图显隐由 JS 控制 display，此处保留扩展点） */
-.workspace-grid.global-list-mode .panel {
-    max-width: 960px;
 }
 
 /* ============ 表单 ============ */
@@ -577,10 +565,6 @@ textarea {
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     overflow: hidden;
-}
-
-.form-stack > .form-object.is-collapsible {
-    margin: 0;
 }
 
 .form-object-toggle {
@@ -834,16 +818,6 @@ textarea {
     margin-bottom: 14px;
 }
 
-#globalListContent .global-list-display {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 14px;
-    max-height: none;
-    overflow: hidden;
-}
-
 .global-list-scroll {
     flex: 1;
     min-height: 0;
@@ -854,26 +828,39 @@ textarea {
     padding-right: 4px;
 }
 
-#globalListContent .batch-field {
-    flex: 0 0 auto;
-    height: 220px;
+#globalListContent .batch-field,
+.batch-card .batch-field {
     display: flex;
     flex-direction: column;
     align-items: stretch;
     margin: 0;
+}
+
+#globalListContent .batch-field {
+    flex: 0 0 auto;
+    height: 220px;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
 }
 
-#globalListContent .batch-field .field-control {
+.batch-card .batch-field {
+    height: 190px;
+    border: 0;
+    padding: 0;
+}
+
+#globalListContent .batch-field .field-control,
+.batch-card .batch-field .field-control {
     flex: 1;
     min-height: 0;
     display: flex;
 }
 
-#globalListBatchInput {
+#globalListBatchInput,
+.batch-card .batch-field textarea {
     flex: 1;
     min-height: 0;
+    width: 100%;
 }
 
 .global-list-count {
@@ -904,6 +891,8 @@ textarea {
     background: var(--surface);
     border: 1px solid var(--line-soft);
     border-radius: var(--radius-sm);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 46px;
 }
 
 .global-list-row-label {
@@ -944,35 +933,13 @@ textarea {
 
 .builtin-ban-words-section .global-list-display,
 .global-ban-words-section .global-list-display {
-    height:430px;
+    height: 430px;
     max-height: 430px;
     overflow: hidden;
 }
 
 .batch-card {
     margin-top: 14px;
-}
-
-.batch-card .batch-field {
-    height: 190px;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    margin: 0;
-    border: 0;
-    padding: 0;
-}
-
-.batch-card .batch-field .field-control {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-}
-
-.batch-card .batch-field textarea {
-    flex: 1;
-    min-height: 0;
-    width: 100%;
 }
 
 @media (max-width: 1100px) {
@@ -1039,14 +1006,6 @@ textarea {
     gap: 10px;
     cursor: pointer;
     overflow: hidden;
-}
-
-.inline-actions {
-    display: flex;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
 }
 
 /* ============ 浮层 ============ */
@@ -1153,15 +1112,26 @@ textarea {
 
 @media (max-width: 900px) {
     .app {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr;
-        height: 100dvh;
+        display: block;
+        height: auto;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: visible;
     }
 
     .sidebar {
         border-right: 0;
         border-bottom: 1px solid var(--line);
-        max-height: 44dvh;
+        max-height: none;
+    }
+
+    .side-nav {
+        max-height: 38vh;
+        max-height: 38dvh;
+    }
+
+    .workspace-grid {
+        overflow: visible;
     }
 
     .topbar,
@@ -1173,5 +1143,85 @@ textarea {
     .field {
         grid-template-columns: 1fr;
         gap: 10px;
+    }
+}
+
+@media (max-width: 600px) {
+    body {
+        font-size: 13px;
+    }
+
+    .sidebar {
+        gap: 10px;
+        padding: 12px 10px;
+    }
+
+    .brand-badge {
+        width: 30px;
+        height: 30px;
+        font-size: 17px;
+    }
+
+    .brand-text strong {
+        font-size: 14px;
+    }
+
+    .topbar {
+        padding: 14px 16px 10px;
+    }
+
+    .title-group h1 {
+        font-size: 18px;
+    }
+
+    .workspace-grid {
+        padding-bottom: 20px;
+    }
+
+    .panel {
+        gap: 10px;
+    }
+
+    .card {
+        padding: 14px;
+    }
+
+    .field {
+        padding: 12px 14px;
+    }
+
+    .ban-word-list-header,
+    .ban-word-panel-header {
+        flex-wrap: wrap;
+    }
+
+    .ban-word-header-actions {
+        flex-wrap: wrap;
+    }
+
+    .check-group {
+        grid-template-columns: 1fr;
+    }
+
+    .global-list-row {
+        padding: 8px 10px;
+    }
+
+    .global-list-row-del {
+        padding: 6px 12px;
+    }
+
+    .sidebar-foot .ghost-button,
+    .sidebar-foot .primary-button {
+        padding: 10px 12px;
+    }
+
+    .toast-layer {
+        left: 16px;
+        right: 16px;
+    }
+
+    .toast {
+        text-align: center;
     }
 }
